@@ -55,7 +55,7 @@
 
   /* MAIN */
   #mainContent { display:none; }
-  .banner { background:var(--accent); color:#0a0a0a; text-align:center; padding:10px; font-family:'DM Mono',monospace; font-size:11px; font-weight:500; letter-spacing:2px; text-transform:uppercase; margin-bottom:24px; border-radius:4px; }
+  .banner { background:var(--accent); color:#0a0a0a; text-align:center; padding:6px 10px; font-family:'DM Mono',monospace; font-size:10px; font-weight:500; letter-spacing:2px; text-transform:uppercase; margin-bottom:16px; border-radius:4px; }
   .countdown-val { font-family:'Bebas Neue',sans-serif; font-size:15px; }
   .header { margin-bottom:20px; }
   .header h1 { font-family:'Bebas Neue',sans-serif; font-size:clamp(42px,12vw,64px); line-height:0.9; color:var(--text); }
@@ -68,6 +68,14 @@
   .goal-label { font-family:'DM Mono',monospace; font-size:9px; letter-spacing:3px; color:var(--accent); text-transform:uppercase; margin-bottom:8px; }
   .goal-text { font-size:14px; line-height:1.6; color:var(--text); }
   .goal-text strong { color:var(--accent); }
+  /* Generic tile wrapper so each section sits in a box */
+  .tile {
+    border:1px solid var(--border);
+    border-radius:8px;
+    padding:16px 18px 18px;
+    background:#050505;
+  }
+  .tile + .tile { margin-top:18px; }
   .section-title { font-family:'DM Mono',monospace; font-size:10px; letter-spacing:3px; color:var(--muted); text-transform:uppercase; margin-bottom:12px; margin-top:28px; }
   .task { background:var(--card); border:1px solid var(--border); border-radius:6px; padding:16px; margin-bottom:10px; display:flex; align-items:flex-start; gap:14px; cursor:pointer; transition:border-color 0.2s,background 0.2s; -webkit-tap-highlight-color:transparent; user-select:none; animation:fadeIn 0.3s ease both; }
   .task.done { background:#0d1a0f; border-color:#1a3320; }
@@ -146,12 +154,17 @@
   .pomo-mode-btn { flex:1; max-width:110px; padding:7px 4px; border-radius:4px; border:1px solid var(--border); background:#0d0d0d; font-family:'DM Mono',monospace; font-size:9px; letter-spacing:1px; color:var(--muted); cursor:pointer; text-transform:uppercase; transition:all 0.2s; }
   .pomo-mode-btn.active { background:#1a1500; border-color:var(--accent); color:var(--accent); }
   .pomo-mode-btn.break-active { background:#0d1a0f; border-color:var(--green); color:var(--green); }
-  .pomo-ring-wrap { position:relative; width:160px; height:160px; margin:0 auto 18px; }
+  .pomo-ring-wrap {
+    position:relative;
+    width:min(180px,70%);
+    aspect-ratio:1/1;
+    margin:0 auto 18px;
+  }
   .pomo-ring-bg { fill:none; stroke:var(--border); stroke-width:8; }
   .pomo-ring-fg { fill:none; stroke:var(--accent); stroke-width:8; stroke-linecap:round; transition:stroke-dashoffset 1s linear, stroke 0.3s; transform:rotate(-90deg); transform-origin:80px 80px; }
   .pomo-ring-fg.break-color { stroke:var(--green); }
-  .pomo-time { position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); font-family:'Bebas Neue',sans-serif; font-size:48px; color:var(--text); line-height:1; }
-  .pomo-label { position:absolute; bottom:22px; left:50%; transform:translateX(-50%); font-family:'DM Mono',monospace; font-size:9px; letter-spacing:2px; color:var(--muted); text-transform:uppercase; white-space:nowrap; }
+  .pomo-time { position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); font-family:'Bebas Neue',sans-serif; font-size:clamp(28px,6vw,48px); color:var(--text); line-height:1; }
+  .pomo-label { position:absolute; bottom:10%; left:50%; transform:translateX(-50%); font-family:'DM Mono',monospace; font-size:9px; letter-spacing:2px; color:var(--muted); text-transform:uppercase; white-space:nowrap; }
   .pomo-btns { display:flex; gap:10px; justify-content:center; margin-bottom:12px; }
   .pomo-btn { padding:12px 28px; border-radius:4px; border:none; font-family:'DM Mono',monospace; font-size:12px; font-weight:500; letter-spacing:1px; text-transform:uppercase; cursor:pointer; transition:all 0.2s; }
   .pomo-start { background:var(--accent); color:#000; }
@@ -204,33 +217,52 @@
   .rh-entry-row { font-size:12px; color:#777; line-height:1.5; margin-top:3px; }
   .rh-entry-row b { font-family:'DM Mono',monospace; font-size:8px; color:#444; letter-spacing:1px; text-transform:uppercase; font-weight:normal; }
 
-  /* DESKTOP LAYOUT */
+  /* Temporarily hide header, missed banner and goal card */
+  .header,
+  .missed-banner,
+  .goal-card {
+    display:none !important;
+  }
+
+  /* DESKTOP LAYOUT – full-viewport hero with tiled grid */
   @media (min-width: 1024px) {
     body {
-      max-width:960px;
-      margin:24px auto;
-      padding:0 24px 40px;
-      width:auto;
-      height:auto;
-      overflow:auto;
+      max-width:none;
+      margin:0;
+      padding:0;
+      width:100vw;
+      height:100vh;
+      overflow:hidden;
     }
     #mainContent {
-      display:grid;
-      grid-template-columns:repeat(2,minmax(0,1fr));
-      gap:16px 24px;
+      display:grid !important;
+      grid-template-columns:repeat(3,minmax(0,1fr));
+      grid-auto-rows:minmax(260px,1fr);
+      gap:20px;
+      padding:24px 40px 32px;
+      box-sizing:border-box;
+      height:100vh;
+      width:100vw;
+      overflow-y:auto;
     }
-    .goal-card,
-    .week-card,
-    .pomo-card,
-    .subject-card,
-    .streak-section,
-    .reflection-card,
-    .reality,
-    .install-banner,
-    .notif-banner,
-    .reset-btn {
+    /* Banner across all columns on first row -- keep slim */
+    .banner {
+      grid-column:1 / 4;
+      align-self:start;
+      padding:8px 12px;
+      margin-bottom:12px;
+    }
+    /* All tiles behave like cards inside the grid */
+    .tile {
       width:100%;
+      height:100%;
+      overflow:auto;
     }
+    /* In grid mode we don't want staggered vertical margins between tiles */
+    .tile + .tile {
+      margin-top:0;
+    }
+    .tile .section-title { margin-top:0; }
   }
 </style>
 </head>
@@ -299,8 +331,9 @@
   </div>
 
   <!-- TASKS -->
-  <div class="section-title">📋 Today's Tasks — tap to complete</div>
-  <div id="taskList">
+  <div class="tile tile-tasks">
+    <div class="section-title">📋 Today's Tasks — tap to complete</div>
+    <div id="taskList">
     <div class="task" data-id="0" onclick="toggleTask(0)">
       <div class="checkbox" id="cb0"></div>
       <div class="task-body">
@@ -336,43 +369,49 @@
         <div class="task-desc">Bad CGPA closes doors too. Don't let it slip.</div>
       </div>
     </div>
+    </div>
+    <div class="progress-bar-wrap"><div class="progress-bar" id="progressBar" style="width:0%"></div></div>
+    <div class="progress-label" id="progressLabel">0 / 5 done today</div>
   </div>
-  <div class="progress-bar-wrap"><div class="progress-bar" id="progressBar" style="width:0%"></div></div>
-  <div class="progress-label" id="progressLabel">0 / 5 done today</div>
 
   <!-- WEEK VIEW -->
-  <div class="section-title">📅 This Week</div>
-  <div class="week-card">
-    <div class="week-grid" id="weekGrid"></div>
-    <div class="week-summary" id="weekSummary"></div>
+  <div class="tile tile-week">
+    <div class="section-title">📅 This Week</div>
+    <div class="week-card">
+      <div class="week-grid" id="weekGrid"></div>
+      <div class="week-summary" id="weekSummary"></div>
+    </div>
   </div>
 
   <!-- POMODORO -->
-  <div class="section-title">⏱ Pomodoro Timer</div>
-  <div class="pomo-card">
+  <div class="tile tile-pomo">
+    <div class="section-title">⏱ Pomodoro Timer</div>
+    <div class="pomo-card">
     <div class="pomo-mode-row">
       <button class="pomo-mode-btn active" id="btn-focus" onclick="setPomoMode('focus')">🍅 Focus 25m</button>
       <button class="pomo-mode-btn" id="btn-short" onclick="setPomoMode('short')">☕ Break 5m</button>
       <button class="pomo-mode-btn" id="btn-long" onclick="setPomoMode('long')">🛌 Long 15m</button>
     </div>
     <div class="pomo-ring-wrap">
-      <svg viewBox="0 0 160 160" width="160" height="160">
+      <svg viewBox="0 0 160 160" width="100%" height="100%">
         <circle class="pomo-ring-bg" cx="80" cy="80" r="68"/>
         <circle class="pomo-ring-fg" id="pomoRing" cx="80" cy="80" r="68" stroke-dasharray="427" stroke-dashoffset="0"/>
       </svg>
       <div class="pomo-time" id="pomoTime">25:00</div>
       <div class="pomo-label" id="pomoModeLabel">FOCUS</div>
     </div>
-    <div class="pomo-btns">
-      <button class="pomo-btn pomo-start" id="pomoStartBtn" onclick="togglePomo()">START</button>
-      <button class="pomo-btn pomo-reset" onclick="resetPomo()">RESET</button>
+      <div class="pomo-btns">
+        <button class="pomo-btn pomo-start" id="pomoStartBtn" onclick="togglePomo()">START</button>
+        <button class="pomo-btn pomo-reset" onclick="resetPomo()">RESET</button>
+      </div>
+      <div class="pomo-sessions">Sessions today: <span id="pomoSessions">0</span> 🍅</div>
     </div>
-    <div class="pomo-sessions">Sessions today: <span id="pomoSessions">0</span> 🍅</div>
   </div>
 
   <!-- SUBJECT TRACKER -->
-  <div class="section-title">📚 Subject Progress — tap bar to update</div>
-  <div class="subject-card">
+  <div class="tile tile-subjects">
+    <div class="section-title">📚 Subject Progress — tap bar to update</div>
+    <div class="subject-card">
     <div class="subject-row">
       <div class="subject-top"><div class="subject-name">DBMS</div><div class="subject-pct" id="pct-dbms">0%</div></div>
       <div class="subject-bar-wrap" id="wrap-dbms"><div class="subject-bar bar-dbms" id="bar-dbms" style="width:0%"></div></div>
@@ -389,21 +428,25 @@
       <div class="subject-top"><div class="subject-name">DSA / LeetCode</div><div class="subject-pct" id="pct-dsa">0%</div></div>
       <div class="subject-bar-wrap" id="wrap-dsa"><div class="subject-bar bar-dsa" id="bar-dsa" style="width:0%"></div></div>
     </div>
+    </div>
   </div>
 
   <!-- STREAK -->
-  <div class="section-title">🔥 Streak Tracker</div>
-  <div class="streak-section">
-    <div class="streak-top">
-      <div><div class="streak-count" id="streakCount">0</div><div class="streak-label">day streak</div></div>
-      <button class="streak-btn" id="streakBtn" onclick="markToday()">✓ Done Today</button>
+  <div class="tile tile-streak">
+    <div class="section-title">🔥 Streak Tracker</div>
+    <div class="streak-section">
+      <div class="streak-top">
+        <div><div class="streak-count" id="streakCount">0</div><div class="streak-label">day streak</div></div>
+        <button class="streak-btn" id="streakBtn" onclick="markToday()">✓ Done Today</button>
+      </div>
+      <div class="streak-dots" id="streakDots"></div>
     </div>
-    <div class="streak-dots" id="streakDots"></div>
   </div>
 
   <!-- DAILY REFLECTION -->
-  <div class="section-title">📝 Daily Reflection</div>
-  <div class="reflection-card">
+  <div class="tile tile-reflection">
+    <div class="section-title">📝 Daily Reflection</div>
+    <div class="reflection-card">
     <div class="reflection-date-label" id="reflectionDate">—</div>
     <div class="reflection-q">What did you actually study today?</div>
     <textarea class="reflection-input" id="ref1" placeholder="e.g. DBMS normalization, 2 LC mediums on binary search..." rows="2"></textarea>
@@ -411,27 +454,30 @@
     <textarea class="reflection-input" id="ref2" placeholder="Be honest. No one sees this." rows="2"></textarea>
     <div class="reflection-q">What will you do first thing tomorrow?</div>
     <textarea class="reflection-input" id="ref3" placeholder="One specific task, not a vague goal." rows="2"></textarea>
-    <button class="reflection-save" onclick="saveReflection()">SAVE TODAY'S REFLECTION</button>
-    <div class="reflection-saved" id="reflectionSaved">✓ Saved. Same time tomorrow.</div>
-    <div class="reflection-history" id="reflectionHistory">
-      <div class="rh-title">Past Reflections</div>
-      <div id="reflectionList"></div>
+      <button class="reflection-save" onclick="saveReflection()">SAVE TODAY'S REFLECTION</button>
+      <div class="reflection-saved" id="reflectionSaved">✓ Saved. Same time tomorrow.</div>
+      <div class="reflection-history" id="reflectionHistory">
+        <div class="rh-title">Past Reflections</div>
+        <div id="reflectionList"></div>
+      </div>
     </div>
   </div>
 
-  <div class="reality">
-    <div class="reality-label">⚠ Reality Check</div>
-    <div class="reality-text">Most 3rd year CSE students get rejected in round 1 because they can't solve basic DSA. Tasks here are small on purpose. No excuses. Open this every single morning.</div>
+  <div class="tile tile-reality">
+    <div class="reality">
+      <div class="reality-label">⚠ Reality Check</div>
+      <div class="reality-text">Most 3rd year CSE students get rejected in round 1 because they can't solve basic DSA. Tasks here are small on purpose. No excuses. Open this every single morning.</div>
+    </div>
+    <div class="install-banner" id="installBanner">
+      <div class="install-text">📲 Install as an app → you'll get lock screen reminders.</div>
+      <button class="install-btn" onclick="installPWA()">Add to Home Screen</button>
+    </div>
+    <div class="notif-banner" id="notifBanner">
+      <div class="notif-text">🔔 Allow notifications so this reminds you on your lock screen.</div>
+      <button class="notif-btn" onclick="requestNotifPermission()">Allow Reminders</button>
+    </div>
+    <button class="reset-btn" onclick="resetDay()">↺ Reset Today's Tasks</button>
   </div>
-  <div class="install-banner" id="installBanner">
-    <div class="install-text">📲 Install as an app → you'll get lock screen reminders.</div>
-    <button class="install-btn" onclick="installPWA()">Add to Home Screen</button>
-  </div>
-  <div class="notif-banner" id="notifBanner">
-    <div class="notif-text">🔔 Allow notifications so this reminds you on your lock screen.</div>
-    <button class="notif-btn" onclick="requestNotifPermission()">Allow Reminders</button>
-  </div>
-  <button class="reset-btn" onclick="resetDay()">↺ Reset Today's Tasks</button>
 </div>
 
 <script>
