@@ -113,13 +113,15 @@
 
   /* STICKY MINI POMODORO */
   #pomoFloat {
-    position:fixed; top:16px; left:16px; z-index:9000;
+    position:fixed; top:16px; right:16px; z-index:9000;
     background:#111; border:1px solid var(--border);
     border-radius:10px; padding:10px 12px;
     display:none; flex-direction:column; align-items:center;
     gap:6px; min-width:110px;
     box-shadow:0 4px 24px rgba(0,0,0,0.7);
     transition:border-color 0.3s;
+    cursor:move;
+    touch-action:none;
   }
   #pomoFloat.running { border-color:var(--accent); }
   #pomoFloat.break-running { border-color:var(--green); }
@@ -130,11 +132,13 @@
   .pf-start { background:var(--accent); color:#000; }
   .pf-start.paused { background:#1a1500; border:1px solid var(--accent); color:var(--accent); }
   .pf-reset { background:transparent; border:1px solid var(--border); color:var(--muted); }
-  .pf-ring-wrap { position:relative; width:56px; height:56px; }
+  .pf-ring-wrap { position:relative; width:var(--pf-size,125px); height:var(--pf-size,125px); }
+  .pf-ring-wrap svg { width:100%; height:100%; }
   .pf-ring-bg { fill:none; stroke:var(--border); stroke-width:5; }
-  .pf-ring-fg { fill:none; stroke:var(--accent); stroke-width:5; stroke-linecap:round; transition:stroke-dashoffset 1s linear, stroke 0.3s; transform:rotate(-90deg); transform-origin:28px 28px; }
+  .pf-ring-fg { fill:none; stroke:#ff4b4b; stroke-width:5; stroke-linecap:round; transition:stroke-dashoffset 1s linear, stroke 0.3s; transform:rotate(-90deg); transform-origin:28px 28px; }
   .pf-ring-fg.break-color { stroke:var(--green); }
   .pf-ring-time { position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); font-family:'Bebas Neue',sans-serif; font-size:14px; color:var(--text); white-space:nowrap; }
+  .pf-resize { position:absolute; left:4px; bottom:4px; width:12px; height:12px; border-left:2px solid var(--border); border-bottom:2px solid var(--border); cursor:sw-resize; opacity:0.6; }
 
   /* POMODORO SECTION (full) */
   .pomo-card { background:var(--card); border:1px solid var(--border); border-radius:6px; padding:20px 16px; margin-top:8px; text-align:center; }
@@ -199,6 +203,35 @@
   .rh-entry-date { font-family:'DM Mono',monospace; font-size:9px; color:var(--muted); margin-bottom:6px; }
   .rh-entry-row { font-size:12px; color:#777; line-height:1.5; margin-top:3px; }
   .rh-entry-row b { font-family:'DM Mono',monospace; font-size:8px; color:#444; letter-spacing:1px; text-transform:uppercase; font-weight:normal; }
+
+  /* DESKTOP LAYOUT */
+  @media (min-width: 1024px) {
+    body {
+      max-width:960px;
+      margin:24px auto;
+      padding:0 24px 40px;
+      width:auto;
+      height:auto;
+      overflow:auto;
+    }
+    #mainContent {
+      display:grid;
+      grid-template-columns:repeat(2,minmax(0,1fr));
+      gap:16px 24px;
+    }
+    .goal-card,
+    .week-card,
+    .pomo-card,
+    .subject-card,
+    .streak-section,
+    .reflection-card,
+    .reality,
+    .install-banner,
+    .notif-banner,
+    .reset-btn {
+      width:100%;
+    }
+  }
 </style>
 </head>
 <body>
@@ -229,11 +262,12 @@
 <!-- STICKY MINI POMODORO -->
 <div id="pomoFloat">
   <div class="pf-ring-wrap">
-    <svg viewBox="0 0 56 56" width="56" height="56">
+    <svg viewBox="0 0 56 56" width="125" height="125">
       <circle class="pf-ring-bg" cx="28" cy="28" r="23"/>
       <circle class="pf-ring-fg" id="pfRing" cx="28" cy="28" r="23" stroke-dasharray="144.5" stroke-dashoffset="0"/>
     </svg>
     <div class="pf-ring-time" id="pfTime">25:00</div>
+    <div class="pf-resize"></div>
   </div>
   <div class="pf-label" id="pfLabel">FOCUS</div>
   <div class="pf-btns">
@@ -244,7 +278,9 @@
 
 <!-- MAIN DASHBOARD -->
 <div id="mainContent">
-  <div class="banner">⚡ Placements in <span class="countdown-val" id="countdownDays">—</span> days &nbsp;|&nbsp; Act like it</div>
+  <div class="banner">
+    ⚡ Placements in <span class="countdown-val" id="countdownDays">—</span> days &nbsp;|&nbsp; Act like it
+  </div>
   <div class="header">
     <h1>YOUR<br><span>DAILY</span><br>MISSION</h1>
     <div class="date" id="todayDate">—</div>
@@ -402,6 +438,7 @@
   const TASKS_KEY='cse_tasks', STREAK_KEY='cse_streak', LAST_DATE_KEY='cse_last_date';
   const STREAK_LOG_KEY='cse_streak_log', SNOOZE_KEY='cse_snooze_until';
   const SUBJ_KEY='cse_subjects', REFLECT_KEY='cse_reflections', POMO_KEY='cse_pomo';
+  const DEV_BYPASS_KEY='cse_dev_bypass_slap';
 
   const QUOTES = [
     "While you slept, someone in your batch solved 3 LeetCode problems.\nThey're getting your job.",
@@ -472,6 +509,17 @@
 
   // SLAP SCREEN
   function initSlapScreen(){
+    // Dev/admin bypass: set localStorage.setItem('cse_dev_bypass_slap','1') to skip slap screen
+    try{
+      if(localStorage.getItem(DEV_BYPASS_KEY)==='1'){
+        document.getElementById('slapScreen').style.display='none';
+        document.getElementById('mainContent').style.display='block';
+        document.getElementById('pomoFloat').style.display='flex';
+        renderMissedBanner();
+        return;
+      }
+    }catch(e){}
+
     const snooze=localStorage.getItem(SNOOZE_KEY);
     if(snooze&&Date.now()<parseInt(snooze)){
       document.getElementById('slapScreen').style.display='none';
@@ -624,6 +672,61 @@
     fl.classList.toggle('break-running',pomoRunning&&pomoMode!=='focus');
     const pfBtn=document.getElementById('pfStartBtn');
     if(pfBtn){pfBtn.textContent=pomoRunning?'PAUSE':'START';pfBtn.classList.toggle('paused',!pomoRunning&&pomoRemaining<pomoTotal);}
+  }
+
+  // Sticky pomodoro drag + resize
+  function initPomoFloatDrag(){
+    const float=document.getElementById('pomoFloat');
+    if(!float)return;
+    let mode=null; // 'move' or 'resize'
+    let startX=0,startY=0,startLeft=0,startTop=0,startSize=0;
+    const sizeVar='--pf-size';
+
+    function pointerDown(e){
+      if(e.button!==0 && e.pointerType!=='touch')return;
+      const target=e.target;
+      mode=target.classList.contains('pf-resize')?'resize':'move';
+      const rect=float.getBoundingClientRect();
+      const cs=getComputedStyle(float);
+      if(cs.right!=='auto'){
+        float.style.left=rect.left+'px';
+        float.style.top=rect.top+'px';
+        float.style.right='auto';
+      }
+      startX=e.clientX;startY=e.clientY;
+      startLeft=rect.left;startTop=rect.top;
+      const rootStyle=getComputedStyle(document.documentElement);
+      const currentSize=parseFloat(rootStyle.getPropertyValue(sizeVar))||rect.width;
+      startSize=currentSize;
+      float.setPointerCapture(e.pointerId);
+      e.preventDefault();
+    }
+
+    function pointerMove(e){
+      if(!mode)return;
+      const dx=e.clientX-startX,dy=e.clientY-startY;
+      if(mode==='move'){
+        float.style.left=startLeft+dx+'px';
+        float.style.top=startTop+dy+'px';
+      }else if(mode==='resize'){
+        // Bottom-left handle: dragging down makes it bigger,
+        // dragging up makes it smaller. Horizontal movement is ignored.
+        const delta=dy; // down (dy>0) -> positive -> larger
+        const newSize=Math.max(80,Math.min(220,startSize+delta));
+        document.documentElement.style.setProperty(sizeVar,newSize+'px');
+      }
+    }
+
+    function pointerUp(e){
+      if(!mode)return;
+      mode=null;
+      try{float.releasePointerCapture(e.pointerId);}catch(_){}
+    }
+
+    float.addEventListener('pointerdown',pointerDown);
+    float.addEventListener('pointermove',pointerMove);
+    float.addEventListener('pointerup',pointerUp);
+    float.addEventListener('pointercancel',pointerUp);
   }
   function togglePomo(){
     if(pomoRunning){
@@ -840,6 +943,7 @@
   updatePomoDisplay();
   initTaskAccessibility();
   initSlapScreen();
+  initPomoFloatDrag();
 </script>
 </body>
 </html>
