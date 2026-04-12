@@ -1,0 +1,845 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Daily Mission</title>
+<meta name="theme-color" content="#0a0a0a">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="apple-mobile-web-app-title" content="Daily Mission">
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Mono:wght@400;500&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0a0a; --card: #111111; --border: #222222;
+    --accent: #f0e040; --red: #ff3b3b; --green: #39ff6a;
+    --muted: #555; --text: #e8e8e8; --blue: #6aafff; --purple: #c06aff;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body {
+    background:var(--bg); color:var(--text);
+    font-family:'DM Sans',sans-serif;
+    min-height:100vh; padding:20px 16px 100px;
+    max-width:480px; margin:0 auto; overflow-x:hidden;
+  }
+
+  /* SLAP SCREEN */
+  #slapScreen {
+    position:fixed; inset:0; z-index:10000;
+    background:#000; display:flex; flex-direction:column;
+    align-items:center; justify-content:center;
+    padding:28px 24px 20px; text-align:center; overflow-y:auto;
+  }
+  @keyframes flashRed { 0%,100%{background:#000} 50%{background:#1c0000} }
+  @keyframes shakeIcon { 0%,100%{transform:translateX(0) rotate(0)} 20%{transform:translateX(-8px) rotate(-2deg)} 40%{transform:translateX(8px) rotate(2deg)} 60%{transform:translateX(-5px)} 80%{transform:translateX(5px)} }
+  @keyframes pulseTxt { 0%,100%{transform:scale(1)} 50%{transform:scale(1.03)} }
+  #slapScreen.flash { animation:flashRed 0.5s infinite; }
+  .slap-emoji { font-size:72px; margin-bottom:16px; animation:shakeIcon 0.45s infinite; display:block; }
+  .slap-headline { font-family:'Bebas Neue',sans-serif; font-size:clamp(36px,11vw,54px); line-height:1; color:var(--accent); margin-bottom:12px; animation:pulseTxt 1s infinite; }
+  .slap-quote { font-family:'DM Mono',monospace; font-size:12px; color:#cc3333; line-height:1.75; margin-bottom:18px; max-width:320px; white-space:pre-line; }
+  .slap-missed { background:#1a0000; border:1px solid #440000; border-radius:6px; padding:10px 18px; font-family:'DM Mono',monospace; font-size:11px; color:var(--red); letter-spacing:1px; margin-bottom:16px; width:100%; max-width:320px; }
+  .slap-missed span { font-size:24px; font-family:'Bebas Neue',sans-serif; display:block; margin-top:3px; color:#ff6666; }
+  .honesty-box { background:#0d0d0d; border:1px solid #2a2a2a; border-radius:8px; padding:14px; width:100%; max-width:320px; margin-bottom:16px; text-align:left; }
+  .honesty-q { font-family:'DM Mono',monospace; font-size:10px; color:#777; letter-spacing:1px; text-transform:uppercase; margin-bottom:10px; }
+  .honesty-btns { display:flex; gap:8px; }
+  .honesty-btn { flex:1; padding:10px 6px; border-radius:5px; border:1px solid #2a2a2a; background:#111; font-family:'DM Mono',monospace; font-size:11px; color:#777; cursor:pointer; text-align:center; transition:all 0.2s; }
+  .honesty-btn.sel-yes { background:#1a0000; border-color:var(--red); color:var(--red); }
+  .honesty-btn.sel-no { background:#0d1a0f; border-color:var(--green); color:var(--green); }
+  .honesty-resp { font-family:'DM Mono',monospace; font-size:11px; color:#555; margin-top:8px; line-height:1.6; min-height:14px; }
+  .slap-dismiss-wrap { width:100%; max-width:320px; display:flex; flex-direction:column; gap:10px; }
+  .slap-dismiss-btn { width:100%; padding:16px; background:var(--accent); color:#000; border:none; border-radius:6px; font-family:'Bebas Neue',sans-serif; font-size:20px; letter-spacing:2px; cursor:pointer; }
+  .slap-dismiss-btn:disabled { background:#1e1e1e; color:#3a3a3a; cursor:not-allowed; }
+  .slap-timer { font-family:'DM Mono',monospace; font-size:10px; color:var(--muted); letter-spacing:2px; text-align:center; text-transform:uppercase; }
+  .slap-snooze { width:100%; padding:11px; background:transparent; border:1px solid #1a1a1a; border-radius:6px; font-family:'DM Mono',monospace; font-size:10px; color:#2e2e2e; letter-spacing:1px; cursor:pointer; text-transform:uppercase; }
+
+  /* MAIN */
+  #mainContent { display:none; }
+  .banner { background:var(--accent); color:#0a0a0a; text-align:center; padding:10px; font-family:'DM Mono',monospace; font-size:11px; font-weight:500; letter-spacing:2px; text-transform:uppercase; margin-bottom:24px; border-radius:4px; }
+  .countdown-val { font-family:'Bebas Neue',sans-serif; font-size:15px; }
+  .header { margin-bottom:20px; }
+  .header h1 { font-family:'Bebas Neue',sans-serif; font-size:clamp(42px,12vw,64px); line-height:0.9; color:var(--text); }
+  .header h1 span { color:var(--accent); }
+  .header .date { font-family:'DM Mono',monospace; font-size:11px; color:var(--muted); letter-spacing:2px; text-transform:uppercase; margin-top:10px; }
+  .missed-banner { background:#1a0000; border:1px solid var(--red); border-left:4px solid var(--red); border-radius:4px; padding:12px 14px; margin-bottom:20px; display:none; }
+  .missed-banner-label { font-family:'DM Mono',monospace; font-size:9px; letter-spacing:3px; color:var(--red); text-transform:uppercase; margin-bottom:4px; }
+  .missed-banner-text { font-size:13px; color:#cc5555; line-height:1.5; }
+  .goal-card { border:1px solid var(--accent); border-left:4px solid var(--accent); background:#111; padding:16px; margin-bottom:24px; border-radius:4px; }
+  .goal-label { font-family:'DM Mono',monospace; font-size:9px; letter-spacing:3px; color:var(--accent); text-transform:uppercase; margin-bottom:8px; }
+  .goal-text { font-size:14px; line-height:1.6; color:var(--text); }
+  .goal-text strong { color:var(--accent); }
+  .section-title { font-family:'DM Mono',monospace; font-size:10px; letter-spacing:3px; color:var(--muted); text-transform:uppercase; margin-bottom:12px; margin-top:28px; }
+  .task { background:var(--card); border:1px solid var(--border); border-radius:6px; padding:16px; margin-bottom:10px; display:flex; align-items:flex-start; gap:14px; cursor:pointer; transition:border-color 0.2s,background 0.2s; -webkit-tap-highlight-color:transparent; user-select:none; animation:fadeIn 0.3s ease both; }
+  .task.done { background:#0d1a0f; border-color:#1a3320; }
+  .task.done .task-title { text-decoration:line-through; color:var(--muted); }
+  .task.done .task-desc { color:#333; }
+  .checkbox { width:22px; height:22px; border:2px solid var(--border); border-radius:4px; flex-shrink:0; margin-top:1px; display:flex; align-items:center; justify-content:center; transition:all 0.2s; font-size:13px; }
+  .task.done .checkbox { background:var(--green); border-color:var(--green); color:#000; }
+  .task-body { flex:1; }
+  .task-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:4px; }
+  .task-title { font-size:14px; font-weight:500; color:var(--text); transition:color 0.2s; }
+  .task-tag { font-family:'DM Mono',monospace; font-size:9px; letter-spacing:1px; padding:2px 7px; border-radius:20px; text-transform:uppercase; flex-shrink:0; }
+  .tag-dsa { background:#1a1500; color:var(--accent); border:1px solid #333000; }
+  .tag-core { background:#0d1520; color:#6aafff; border:1px solid #1a3040; }
+  .tag-project { background:#1a0d20; color:#c06aff; border:1px solid #3a1a50; }
+  .task-desc { font-size:12px; color:#666; line-height:1.5; }
+  .progress-bar-wrap { background:var(--border); border-radius:4px; height:6px; margin-top:14px; overflow:hidden; }
+  .progress-bar { height:100%; background:var(--green); border-radius:4px; transition:width 0.5s ease; }
+  .progress-label { font-family:'DM Mono',monospace; font-size:10px; color:var(--muted); margin-top:6px; letter-spacing:1px; }
+  .streak-section { background:var(--card); border:1px solid var(--border); border-radius:6px; padding:16px; margin-top:8px; }
+  .streak-top { display:flex; align-items:center; justify-content:space-between; margin-bottom:14px; }
+  .streak-count { font-family:'Bebas Neue',sans-serif; font-size:42px; color:var(--accent); line-height:1; }
+  .streak-label { font-family:'DM Mono',monospace; font-size:9px; letter-spacing:2px; color:var(--muted); text-transform:uppercase; margin-top:4px; }
+  .streak-btn { background:var(--accent); color:#000; border:none; padding:10px 18px; font-family:'DM Mono',monospace; font-size:11px; font-weight:500; letter-spacing:1px; text-transform:uppercase; border-radius:4px; cursor:pointer; }
+  .streak-dots { display:flex; gap:6px; flex-wrap:wrap; }
+  .dot { width:28px; height:28px; border-radius:4px; background:var(--border); display:flex; align-items:center; justify-content:center; font-size:10px; font-family:'DM Mono',monospace; color:var(--muted); transition:background 0.3s; }
+  .dot.active { background:var(--green); color:#000; }
+  .dot.today { border:2px solid var(--accent); color:var(--accent); }
+  .dot.missed { background:#2a0000; color:#550000; }
+  .reality { border:1px solid var(--red); border-left:4px solid var(--red); background:#110000; padding:14px 16px; margin-top:28px; border-radius:4px; }
+  .reality-label { font-family:'DM Mono',monospace; font-size:9px; letter-spacing:3px; color:var(--red); text-transform:uppercase; margin-bottom:8px; }
+  .reality-text { font-size:13px; color:#cc6666; line-height:1.6; }
+  .install-banner { background:#0d1520; border:1px solid #1a3040; border-radius:6px; padding:14px 16px; margin-top:20px; display:none; }
+  .install-text { font-family:'DM Mono',monospace; font-size:11px; color:#6aafff; line-height:1.6; margin-bottom:10px; }
+  .install-btn { background:#6aafff; color:#000; border:none; padding:10px 16px; border-radius:4px; font-family:'DM Mono',monospace; font-size:11px; cursor:pointer; text-transform:uppercase; }
+  .notif-banner { background:#0d1a10; border:1px solid #1a3a20; border-radius:6px; padding:14px 16px; margin-top:14px; display:none; }
+  .notif-text { font-family:'DM Mono',monospace; font-size:11px; color:#39aa55; line-height:1.6; margin-bottom:10px; }
+  .notif-btn { background:#39ff6a; color:#000; border:none; padding:10px 16px; border-radius:4px; font-family:'DM Mono',monospace; font-size:11px; cursor:pointer; text-transform:uppercase; }
+  .reset-btn { display:block; width:100%; margin-top:20px; background:transparent; border:1px solid var(--border); color:var(--muted); padding:12px; font-family:'DM Mono',monospace; font-size:10px; letter-spacing:2px; text-transform:uppercase; border-radius:4px; cursor:pointer; }
+  @keyframes fadeIn { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
+  .task:nth-child(1){animation-delay:0.05s} .task:nth-child(2){animation-delay:0.1s}
+  .task:nth-child(3){animation-delay:0.15s} .task:nth-child(4){animation-delay:0.2s}
+  .task:nth-child(5){animation-delay:0.25s}
+
+  /* STICKY MINI POMODORO */
+  #pomoFloat {
+    position:fixed; top:16px; left:16px; z-index:9000;
+    background:#111; border:1px solid var(--border);
+    border-radius:10px; padding:10px 12px;
+    display:none; flex-direction:column; align-items:center;
+    gap:6px; min-width:110px;
+    box-shadow:0 4px 24px rgba(0,0,0,0.7);
+    transition:border-color 0.3s;
+  }
+  #pomoFloat.running { border-color:var(--accent); }
+  #pomoFloat.break-running { border-color:var(--green); }
+  .pf-time { font-family:'Bebas Neue',sans-serif; font-size:28px; color:var(--text); line-height:1; letter-spacing:1px; }
+  .pf-label { font-family:'DM Mono',monospace; font-size:8px; letter-spacing:2px; color:var(--muted); text-transform:uppercase; }
+  .pf-btns { display:flex; gap:5px; width:100%; }
+  .pf-btn { flex:1; padding:5px 4px; border-radius:4px; border:none; font-family:'DM Mono',monospace; font-size:9px; letter-spacing:1px; cursor:pointer; text-transform:uppercase; }
+  .pf-start { background:var(--accent); color:#000; }
+  .pf-start.paused { background:#1a1500; border:1px solid var(--accent); color:var(--accent); }
+  .pf-reset { background:transparent; border:1px solid var(--border); color:var(--muted); }
+  .pf-ring-wrap { position:relative; width:56px; height:56px; }
+  .pf-ring-bg { fill:none; stroke:var(--border); stroke-width:5; }
+  .pf-ring-fg { fill:none; stroke:var(--accent); stroke-width:5; stroke-linecap:round; transition:stroke-dashoffset 1s linear, stroke 0.3s; transform:rotate(-90deg); transform-origin:28px 28px; }
+  .pf-ring-fg.break-color { stroke:var(--green); }
+  .pf-ring-time { position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); font-family:'Bebas Neue',sans-serif; font-size:14px; color:var(--text); white-space:nowrap; }
+
+  /* POMODORO SECTION (full) */
+  .pomo-card { background:var(--card); border:1px solid var(--border); border-radius:6px; padding:20px 16px; margin-top:8px; text-align:center; }
+  .pomo-mode-row { display:flex; gap:6px; margin-bottom:18px; justify-content:center; }
+  .pomo-mode-btn { flex:1; max-width:110px; padding:7px 4px; border-radius:4px; border:1px solid var(--border); background:#0d0d0d; font-family:'DM Mono',monospace; font-size:9px; letter-spacing:1px; color:var(--muted); cursor:pointer; text-transform:uppercase; transition:all 0.2s; }
+  .pomo-mode-btn.active { background:#1a1500; border-color:var(--accent); color:var(--accent); }
+  .pomo-mode-btn.break-active { background:#0d1a0f; border-color:var(--green); color:var(--green); }
+  .pomo-ring-wrap { position:relative; width:160px; height:160px; margin:0 auto 18px; }
+  .pomo-ring-bg { fill:none; stroke:var(--border); stroke-width:8; }
+  .pomo-ring-fg { fill:none; stroke:var(--accent); stroke-width:8; stroke-linecap:round; transition:stroke-dashoffset 1s linear, stroke 0.3s; transform:rotate(-90deg); transform-origin:80px 80px; }
+  .pomo-ring-fg.break-color { stroke:var(--green); }
+  .pomo-time { position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); font-family:'Bebas Neue',sans-serif; font-size:48px; color:var(--text); line-height:1; }
+  .pomo-label { position:absolute; bottom:22px; left:50%; transform:translateX(-50%); font-family:'DM Mono',monospace; font-size:9px; letter-spacing:2px; color:var(--muted); text-transform:uppercase; white-space:nowrap; }
+  .pomo-btns { display:flex; gap:10px; justify-content:center; margin-bottom:12px; }
+  .pomo-btn { padding:12px 28px; border-radius:4px; border:none; font-family:'DM Mono',monospace; font-size:12px; font-weight:500; letter-spacing:1px; text-transform:uppercase; cursor:pointer; transition:all 0.2s; }
+  .pomo-start { background:var(--accent); color:#000; }
+  .pomo-reset { background:transparent; border:1px solid var(--border); color:var(--muted); }
+  .pomo-sessions { font-family:'DM Mono',monospace; font-size:10px; color:var(--muted); letter-spacing:1px; }
+  .pomo-sessions span { color:var(--accent); font-size:14px; }
+
+  /* SUBJECT TRACKER */
+  .subject-card { background:var(--card); border:1px solid var(--border); border-radius:6px; padding:16px; margin-top:8px; }
+  .subject-row { margin-bottom:16px; }
+  .subject-row:last-child { margin-bottom:0; }
+  .subject-top { display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; }
+  .subject-name { font-size:13px; font-weight:500; color:var(--text); }
+  .subject-pct { font-family:'DM Mono',monospace; font-size:12px; color:var(--accent); }
+  .subject-bar-wrap { background:var(--border); border-radius:4px; height:10px; overflow:hidden; position:relative; cursor:pointer; }
+  .subject-bar { height:100%; border-radius:4px; transition:width 0.3s ease; }
+  .bar-dbms { background:var(--blue); }
+  .bar-os { background:var(--purple); }
+  .bar-cn { background:var(--green); }
+  .bar-dsa { background:var(--accent); }
+  .subject-hint { font-family:'DM Mono',monospace; font-size:9px; color:#2a2a2a; margin-top:4px; letter-spacing:1px; }
+
+  /* WEEK VIEW */
+  .week-card { background:var(--card); border:1px solid var(--border); border-radius:6px; padding:16px; margin-top:8px; }
+  .week-grid { display:grid; grid-template-columns:repeat(7,1fr); gap:5px; }
+  .week-day { display:flex; flex-direction:column; align-items:center; gap:5px; }
+  .week-day-label { font-family:'DM Mono',monospace; font-size:8px; color:var(--muted); letter-spacing:1px; text-transform:uppercase; }
+  .week-day-dot { width:100%; aspect-ratio:1; border-radius:6px; background:var(--border); display:flex; align-items:center; justify-content:center; font-size:10px; font-family:'DM Mono',monospace; color:var(--muted); flex-direction:column; gap:1px; min-width:34px; }
+  .week-day-dot.full { background:#0d1a0f; border:1px solid #1a3320; color:var(--green); font-size:16px; }
+  .week-day-dot.partial { background:#1a1500; border:1px solid #333000; color:var(--accent); }
+  .week-day-dot.empty { background:#1a0000; border:1px solid #2a0000; color:#550000; font-size:9px; }
+  .week-day-dot.today-ring { border:2px solid var(--accent) !important; }
+  .week-day-dot.future { background:#0d0d0d; color:#2a2a2a; }
+  .week-summary { font-family:'DM Mono',monospace; font-size:10px; color:var(--muted); margin-top:12px; letter-spacing:1px; text-align:center; }
+  .week-summary b { color:var(--accent); font-weight:normal; }
+
+  /* DAILY REFLECTION */
+  .reflection-card { background:var(--card); border:1px solid var(--border); border-radius:6px; padding:16px; margin-top:8px; }
+  .reflection-date-label { font-family:'DM Mono',monospace; font-size:9px; color:var(--muted); letter-spacing:2px; text-transform:uppercase; margin-bottom:14px; }
+  .reflection-q { font-family:'DM Mono',monospace; font-size:9px; color:#666; letter-spacing:1px; text-transform:uppercase; margin-bottom:6px; margin-top:14px; }
+  .reflection-q:first-of-type { margin-top:0; }
+  .reflection-input { width:100%; background:#0d0d0d; border:1px solid var(--border); border-radius:4px; padding:10px 12px; font-family:'DM Sans',sans-serif; font-size:13px; color:var(--text); resize:none; line-height:1.5; min-height:58px; outline:none; transition:border-color 0.2s; }
+  .reflection-input:focus { border-color:#333; }
+  .reflection-save { width:100%; margin-top:14px; padding:12px; background:var(--accent); color:#000; border:none; border-radius:4px; font-family:'DM Mono',monospace; font-size:11px; font-weight:500; letter-spacing:2px; text-transform:uppercase; cursor:pointer; }
+  .reflection-saved { display:none; font-family:'DM Mono',monospace; font-size:10px; color:var(--green); text-align:center; margin-top:8px; letter-spacing:1px; }
+  .reflection-history { margin-top:16px; border-top:1px solid var(--border); padding-top:14px; display:none; }
+  .rh-title { font-family:'DM Mono',monospace; font-size:9px; color:var(--muted); letter-spacing:2px; text-transform:uppercase; margin-bottom:10px; }
+  .rh-entry { background:#0d0d0d; border:1px solid var(--border); border-radius:4px; padding:10px 12px; margin-bottom:8px; }
+  .rh-entry-date { font-family:'DM Mono',monospace; font-size:9px; color:var(--muted); margin-bottom:6px; }
+  .rh-entry-row { font-size:12px; color:#777; line-height:1.5; margin-top:3px; }
+  .rh-entry-row b { font-family:'DM Mono',monospace; font-size:8px; color:#444; letter-spacing:1px; text-transform:uppercase; font-weight:normal; }
+</style>
+</head>
+<body>
+
+<!-- SLAP SCREEN -->
+<div id="slapScreen">
+  <span class="slap-emoji">🚨</span>
+  <div class="slap-headline" id="slapHeadline">WAKE UP.<br>DO YOUR TASKS.</div>
+  <div class="slap-quote" id="slapQuote"></div>
+  <div class="slap-missed" id="slapMissed" style="display:none">
+    DAYS SKIPPED THIS WEEK<span id="slapMissedCount">0</span>
+  </div>
+  <div class="honesty-box">
+    <div class="honesty-q">Did you open YouTube / Instagram before this?</div>
+    <div class="honesty-btns">
+      <button type="button" class="honesty-btn" id="hYes" onclick="honestyAnswer(true)">😔 Yes I did</button>
+      <button type="button" class="honesty-btn" id="hNo" onclick="honestyAnswer(false)">✊ No I didn't</button>
+    </div>
+    <div class="honesty-resp" id="honestyResp"></div>
+  </div>
+  <div class="slap-dismiss-wrap">
+    <button class="slap-dismiss-btn" id="slapBtn" onclick="dismissSlap()" disabled>I WILL DO MY TASKS TODAY</button>
+    <div class="slap-timer" id="slapTimer">Read this — unlocks in 7s</div>
+    <button class="slap-snooze" onclick="snoozeSlap()">😴 snooze 1 hour (really bad idea)</button>
+  </div>
+</div>
+
+<!-- STICKY MINI POMODORO -->
+<div id="pomoFloat">
+  <div class="pf-ring-wrap">
+    <svg viewBox="0 0 56 56" width="56" height="56">
+      <circle class="pf-ring-bg" cx="28" cy="28" r="23"/>
+      <circle class="pf-ring-fg" id="pfRing" cx="28" cy="28" r="23" stroke-dasharray="144.5" stroke-dashoffset="0"/>
+    </svg>
+    <div class="pf-ring-time" id="pfTime">25:00</div>
+  </div>
+  <div class="pf-label" id="pfLabel">FOCUS</div>
+  <div class="pf-btns">
+    <button class="pf-btn pf-start" id="pfStartBtn" onclick="togglePomo()">START</button>
+    <button class="pf-btn pf-reset" onclick="resetPomo()">↺</button>
+  </div>
+</div>
+
+<!-- MAIN DASHBOARD -->
+<div id="mainContent">
+  <div class="banner">⚡ Placements in <span class="countdown-val" id="countdownDays">—</span> days &nbsp;|&nbsp; Act like it</div>
+  <div class="header">
+    <h1>YOUR<br><span>DAILY</span><br>MISSION</h1>
+    <div class="date" id="todayDate">—</div>
+  </div>
+  <div class="missed-banner" id="missedBanner">
+    <div class="missed-banner-label">⚠ You missed days this week</div>
+    <div class="missed-banner-text" id="missedBannerText"></div>
+  </div>
+  <div class="goal-card">
+    <div class="goal-label">🎯 Your Goal</div>
+    <div class="goal-text">
+      Get placed at a <strong>decent company</strong> after 6th sem.<br>
+      <strong>~90 days post-exam</strong> to fix DSA, finish core subjects, build a project.<br><br>
+      <strong>Every day you skip = one more rejection.</strong>
+    </div>
+  </div>
+
+  <!-- TASKS -->
+  <div class="section-title">📋 Today's Tasks — tap to complete</div>
+  <div id="taskList">
+    <div class="task" data-id="0" onclick="toggleTask(0)">
+      <div class="checkbox" id="cb0"></div>
+      <div class="task-body">
+        <div class="task-header"><div class="task-title">2 LeetCode Problems</div><div class="task-tag tag-dsa">DSA</div></div>
+        <div class="task-desc">Easy or Medium. Before YouTube. Non-negotiable.</div>
+      </div>
+    </div>
+    <div class="task" data-id="1" onclick="toggleTask(1)">
+      <div class="checkbox" id="cb1"></div>
+      <div class="task-body">
+        <div class="task-header"><div class="task-title">45 min TUF+ Study</div><div class="task-tag tag-core">Core</div></div>
+        <div class="task-desc">DBMS now. OS and CN next. Watch → write 5 lines notes.</div>
+      </div>
+    </div>
+    <div class="task" data-id="2" onclick="toggleTask(2)">
+      <div class="checkbox" id="cb2"></div>
+      <div class="task-body">
+        <div class="task-header"><div class="task-title">Review Yesterday's Notes</div><div class="task-tag tag-core">Core</div></div>
+        <div class="task-desc">5 minutes. This is literally the only way you stop forgetting.</div>
+      </div>
+    </div>
+    <div class="task" data-id="3" onclick="toggleTask(3)">
+      <div class="checkbox" id="cb3"></div>
+      <div class="task-body">
+        <div class="task-header"><div class="task-title">10 min Project Thinking</div><div class="task-tag tag-project">Project</div></div>
+        <div class="task-desc">Sketch, search, or write one idea. You need something to build post-exams.</div>
+      </div>
+    </div>
+    <div class="task" data-id="4" onclick="toggleTask(4)">
+      <div class="checkbox" id="cb4"></div>
+      <div class="task-body">
+        <div class="task-header"><div class="task-title">Study for Sem Exam</div><div class="task-tag tag-core">Exams</div></div>
+        <div class="task-desc">Bad CGPA closes doors too. Don't let it slip.</div>
+      </div>
+    </div>
+  </div>
+  <div class="progress-bar-wrap"><div class="progress-bar" id="progressBar" style="width:0%"></div></div>
+  <div class="progress-label" id="progressLabel">0 / 5 done today</div>
+
+  <!-- WEEK VIEW -->
+  <div class="section-title">📅 This Week</div>
+  <div class="week-card">
+    <div class="week-grid" id="weekGrid"></div>
+    <div class="week-summary" id="weekSummary"></div>
+  </div>
+
+  <!-- POMODORO -->
+  <div class="section-title">⏱ Pomodoro Timer</div>
+  <div class="pomo-card">
+    <div class="pomo-mode-row">
+      <button class="pomo-mode-btn active" id="btn-focus" onclick="setPomoMode('focus')">🍅 Focus 25m</button>
+      <button class="pomo-mode-btn" id="btn-short" onclick="setPomoMode('short')">☕ Break 5m</button>
+      <button class="pomo-mode-btn" id="btn-long" onclick="setPomoMode('long')">🛌 Long 15m</button>
+    </div>
+    <div class="pomo-ring-wrap">
+      <svg viewBox="0 0 160 160" width="160" height="160">
+        <circle class="pomo-ring-bg" cx="80" cy="80" r="68"/>
+        <circle class="pomo-ring-fg" id="pomoRing" cx="80" cy="80" r="68" stroke-dasharray="427" stroke-dashoffset="0"/>
+      </svg>
+      <div class="pomo-time" id="pomoTime">25:00</div>
+      <div class="pomo-label" id="pomoModeLabel">FOCUS</div>
+    </div>
+    <div class="pomo-btns">
+      <button class="pomo-btn pomo-start" id="pomoStartBtn" onclick="togglePomo()">START</button>
+      <button class="pomo-btn pomo-reset" onclick="resetPomo()">RESET</button>
+    </div>
+    <div class="pomo-sessions">Sessions today: <span id="pomoSessions">0</span> 🍅</div>
+  </div>
+
+  <!-- SUBJECT TRACKER -->
+  <div class="section-title">📚 Subject Progress — tap bar to update</div>
+  <div class="subject-card">
+    <div class="subject-row">
+      <div class="subject-top"><div class="subject-name">DBMS</div><div class="subject-pct" id="pct-dbms">0%</div></div>
+      <div class="subject-bar-wrap" id="wrap-dbms"><div class="subject-bar bar-dbms" id="bar-dbms" style="width:0%"></div></div>
+    </div>
+    <div class="subject-row">
+      <div class="subject-top"><div class="subject-name">Operating Systems</div><div class="subject-pct" id="pct-os">0%</div></div>
+      <div class="subject-bar-wrap" id="wrap-os"><div class="subject-bar bar-os" id="bar-os" style="width:0%"></div></div>
+    </div>
+    <div class="subject-row">
+      <div class="subject-top"><div class="subject-name">Computer Networks</div><div class="subject-pct" id="pct-cn">0%</div></div>
+      <div class="subject-bar-wrap" id="wrap-cn"><div class="subject-bar bar-cn" id="bar-cn" style="width:0%"></div></div>
+    </div>
+    <div class="subject-row">
+      <div class="subject-top"><div class="subject-name">DSA / LeetCode</div><div class="subject-pct" id="pct-dsa">0%</div></div>
+      <div class="subject-bar-wrap" id="wrap-dsa"><div class="subject-bar bar-dsa" id="bar-dsa" style="width:0%"></div></div>
+    </div>
+  </div>
+
+  <!-- STREAK -->
+  <div class="section-title">🔥 Streak Tracker</div>
+  <div class="streak-section">
+    <div class="streak-top">
+      <div><div class="streak-count" id="streakCount">0</div><div class="streak-label">day streak</div></div>
+      <button class="streak-btn" id="streakBtn" onclick="markToday()">✓ Done Today</button>
+    </div>
+    <div class="streak-dots" id="streakDots"></div>
+  </div>
+
+  <!-- DAILY REFLECTION -->
+  <div class="section-title">📝 Daily Reflection</div>
+  <div class="reflection-card">
+    <div class="reflection-date-label" id="reflectionDate">—</div>
+    <div class="reflection-q">What did you actually study today?</div>
+    <textarea class="reflection-input" id="ref1" placeholder="e.g. DBMS normalization, 2 LC mediums on binary search..." rows="2"></textarea>
+    <div class="reflection-q">What did you avoid or procrastinate on?</div>
+    <textarea class="reflection-input" id="ref2" placeholder="Be honest. No one sees this." rows="2"></textarea>
+    <div class="reflection-q">What will you do first thing tomorrow?</div>
+    <textarea class="reflection-input" id="ref3" placeholder="One specific task, not a vague goal." rows="2"></textarea>
+    <button class="reflection-save" onclick="saveReflection()">SAVE TODAY'S REFLECTION</button>
+    <div class="reflection-saved" id="reflectionSaved">✓ Saved. Same time tomorrow.</div>
+    <div class="reflection-history" id="reflectionHistory">
+      <div class="rh-title">Past Reflections</div>
+      <div id="reflectionList"></div>
+    </div>
+  </div>
+
+  <div class="reality">
+    <div class="reality-label">⚠ Reality Check</div>
+    <div class="reality-text">Most 3rd year CSE students get rejected in round 1 because they can't solve basic DSA. Tasks here are small on purpose. No excuses. Open this every single morning.</div>
+  </div>
+  <div class="install-banner" id="installBanner">
+    <div class="install-text">📲 Install as an app → you'll get lock screen reminders.</div>
+    <button class="install-btn" onclick="installPWA()">Add to Home Screen</button>
+  </div>
+  <div class="notif-banner" id="notifBanner">
+    <div class="notif-text">🔔 Allow notifications so this reminds you on your lock screen.</div>
+    <button class="notif-btn" onclick="requestNotifPermission()">Allow Reminders</button>
+  </div>
+  <button class="reset-btn" onclick="resetDay()">↺ Reset Today's Tasks</button>
+</div>
+
+<script>
+  const TASKS_KEY='cse_tasks', STREAK_KEY='cse_streak', LAST_DATE_KEY='cse_last_date';
+  const STREAK_LOG_KEY='cse_streak_log', SNOOZE_KEY='cse_snooze_until';
+  const SUBJ_KEY='cse_subjects', REFLECT_KEY='cse_reflections', POMO_KEY='cse_pomo';
+
+  const QUOTES = [
+    "While you slept, someone in your batch solved 3 LeetCode problems.\nThey're getting your job.",
+    "You said 'tomorrow' yesterday too.\nTomorrow doesn't exist. Only right now.",
+    "Comfort is expensive.\nYou're paying for it with your placement offer.",
+    "The students who got placed last year?\nThey were grinding at 7am while you scrolled.",
+    "Skipping one day feels small.\nSkipping 30 days is how you fail placements.",
+    "The recruiter doesn't care about your reasons.\nOnly your GitHub and your DSA.",
+    "You have 90 days. Not 90 'tomorrows'.\n90 todays. Use this one.",
+    "Average CSE student: watches TUF, builds nothing, gets rejected.\nDon't be average.",
+    "The placement interview is coming whether you prepare or not.\nYour move.",
+    "Someone from your college is grinding LeetCode right now.\nAre you?"
+  ];
+
+  function getToday() { return new Date().toISOString().split('T')[0]; }
+  function getStreakLog() { try{return JSON.parse(localStorage.getItem(STREAK_LOG_KEY))||[];}catch{return[];} }
+  function getMissedDays() {
+    const log = getStreakLog(); let missed=0;
+    for(let i=1;i<=7;i++){const d=new Date();d.setDate(d.getDate()-i);if(!log.includes(d.toISOString().split('T')[0]))missed++;}
+    return missed;
+  }
+
+  // AUDIO
+  let audioCtx=null;
+  function playMaxAlarm(){
+    try{
+      audioCtx=new(window.AudioContext||window.webkitAudioContext)();
+      const master=audioCtx.createGain();master.gain.value=1.0;
+      const comp=audioCtx.createDynamicsCompressor();
+      comp.threshold.value=-3;comp.ratio.value=20;comp.attack.value=0;comp.release.value=0.05;
+      comp.connect(master);master.connect(audioCtx.destination);
+      function beep(freq,type,t,dur,vol){
+        const o=audioCtx.createOscillator(),g=audioCtx.createGain();
+        o.connect(g);g.connect(comp);o.frequency.value=freq;o.type=type;
+        g.gain.setValueAtTime(vol,t);g.gain.exponentialRampToValueAtTime(0.001,t+dur);
+        o.start(t);o.stop(t+dur+0.01);
+      }
+      function alarm(){
+        const t=audioCtx.currentTime;
+        beep(880,'square',t+0.0,0.18,1.0);beep(1760,'sine',t+0.0,0.18,0.5);
+        beep(880,'square',t+0.25,0.18,1.0);beep(1760,'sine',t+0.25,0.18,0.5);
+        beep(1100,'square',t+0.55,0.38,1.0);beep(2200,'sine',t+0.55,0.38,0.5);
+      }
+      alarm();
+      window._snd=setInterval(()=>{
+        if(document.getElementById('slapScreen').style.display!=='none')alarm();
+        else clearInterval(window._snd);
+      },1300);
+    }catch(e){}
+  }
+  function stopAlarm(){
+    clearInterval(window._snd);clearInterval(window._vib);
+    try{if(audioCtx)audioCtx.close();}catch(e){}
+    if('vibrate' in navigator)navigator.vibrate(0);
+  }
+  function vibratePhone(){
+    if(!('vibrate' in navigator))return;
+    const p=[400,100,400,100,800,150,400,100,400,100,800];
+    navigator.vibrate(p);
+    window._vib=setInterval(()=>{
+      if(document.getElementById('slapScreen').style.display!=='none')navigator.vibrate(p);
+      else clearInterval(window._vib);
+    },2800);
+  }
+  function goFullscreen(){
+    try{const e=document.documentElement;if(e.requestFullscreen)e.requestFullscreen();else if(e.webkitRequestFullscreen)e.webkitRequestFullscreen();}catch(e){}
+  }
+
+  // SLAP SCREEN
+  function initSlapScreen(){
+    const snooze=localStorage.getItem(SNOOZE_KEY);
+    if(snooze&&Date.now()<parseInt(snooze)){
+      document.getElementById('slapScreen').style.display='none';
+      document.getElementById('mainContent').style.display='block';
+      renderMissedBanner();return;
+    }
+    document.getElementById('slapQuote').textContent=QUOTES[Math.floor(Math.random()*QUOTES.length)];
+    const missed=getMissedDays();
+    if(missed>=1){document.getElementById('slapMissed').style.display='block';document.getElementById('slapMissedCount').textContent=missed+(missed===1?' DAY':' DAYS');}
+    const ss=document.getElementById('slapScreen');
+    ss.classList.add('flash');setTimeout(()=>ss.classList.remove('flash'),3500);
+    setTimeout(()=>{goFullscreen();vibratePhone();playMaxAlarm();},300);
+    let sec=7;
+    const iv=setInterval(()=>{
+      sec--;
+      if(sec<=0){
+        clearInterval(iv);
+        document.getElementById('slapBtn').disabled=false;
+        const t=document.getElementById('slapTimer');
+        t.textContent='✓ Now go do it.';t.style.color='var(--green)';
+      }else{document.getElementById('slapTimer').textContent=`Read this — unlocks in ${sec}s`;}
+    },1000);
+  }
+  function honestyAnswer(yes){
+    const resp=document.getElementById('honestyResp');
+    document.getElementById('hYes').className='honesty-btn'+(yes?' sel-yes':'');
+    document.getElementById('hNo').className='honesty-btn'+(!yes?' sel-no':'');
+    if(yes){resp.style.color='#cc4444';resp.textContent="That's why you're behind. Close it. Open this first tomorrow.";}
+    else{resp.style.color='var(--green)';resp.textContent="Good habit. Keep it. Now do your tasks.";}
+  }
+  function dismissSlap(){
+    stopAlarm();
+    document.getElementById('slapScreen').style.display='none';
+    document.getElementById('mainContent').style.display='block';
+    document.getElementById('pomoFloat').style.display='flex';
+    renderMissedBanner();askNotifPermission();
+  }
+  function snoozeSlap(){
+    localStorage.setItem(SNOOZE_KEY,Date.now()+3600000);stopAlarm();
+    document.getElementById('slapScreen').style.display='none';
+    document.getElementById('mainContent').style.display='block';
+  }
+
+  // TASKS
+  function loadState(){try{return JSON.parse(localStorage.getItem(TASKS_KEY))||{};}catch{return{};}}
+  function saveState(s){localStorage.setItem(TASKS_KEY,JSON.stringify(s));}
+  function toggleTask(id){
+    const today=getToday(),state=loadState();
+    if(!state[today])state[today]={};
+    state[today][id]=!state[today][id];
+    saveState(state);renderTasks();renderProgress();renderWeekView();
+  }
+  function renderTasks(){
+    const ts=loadState()[getToday()]||{};
+    for(let i=0;i<5;i++){
+      const t=document.querySelector(`.task[data-id="${i}"]`);
+      const c=document.getElementById(`cb${i}`);
+      if(ts[i]){t.classList.add('done');c.innerHTML='✓';}
+      else{t.classList.remove('done');c.innerHTML='';}
+    }
+  }
+  function renderProgress(){
+    const ts=loadState()[getToday()]||{};
+    const done=Object.values(ts).filter(Boolean).length;
+    document.getElementById('progressBar').style.width=(done/5*100)+'%';
+    document.getElementById('progressLabel').textContent=`${done} / 5 done today`;
+  }
+  function resetDay(){const s=loadState();s[getToday()]={};saveState(s);renderTasks();renderProgress();}
+
+  function initTaskAccessibility(){
+    for(let i=0;i<5;i++){
+      const task=document.querySelector(`.task[data-id="${i}"]`);
+      if(!task)continue;
+      task.setAttribute('tabindex','0');
+      task.setAttribute('role','button');
+      task.addEventListener('keydown',e=>{
+        if(e.key==='Enter'||e.key===' '){
+          e.preventDefault();
+          toggleTask(i);
+        }
+      });
+    }
+  }
+
+  // WEEK VIEW
+  function renderWeekView(){
+    const grid=document.getElementById('weekGrid');grid.innerHTML='';
+    const state=loadState(),log=getStreakLog(),today=getToday();
+    const dayNames=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+    const now=new Date();
+    const startOfWeek=new Date(now);
+    startOfWeek.setDate(now.getDate()-((now.getDay()+6)%7)); // Monday
+    let completedFull=0;
+    for(let i=0;i<7;i++){
+      const d=new Date(startOfWeek);d.setDate(startOfWeek.getDate()+i);
+      const ds=d.toISOString().split('T')[0];
+      const isFuture=ds>today,isToday=ds===today;
+      const tasks=state[ds]||{};
+      const done=Object.values(tasks).filter(Boolean).length;
+      const col=document.createElement('div');col.className='week-day';
+      const lbl=document.createElement('div');lbl.className='week-day-label';lbl.textContent=dayNames[d.getDay()];
+      const dot=document.createElement('div');dot.className='week-day-dot';
+      if(isToday)dot.classList.add('today-ring');
+      if(isFuture){dot.classList.add('future');dot.textContent=d.getDate();}
+      else if(log.includes(ds)||done===5){dot.classList.add('full');dot.textContent='✓';completedFull++;}
+      else if(done>0){dot.classList.add('partial');dot.innerHTML=`<span style="font-size:13px">${done}</span><span style="font-size:7px;color:#888">/5</span>`;}
+      else{dot.classList.add('empty');dot.textContent=d.getDate();}
+      col.appendChild(lbl);col.appendChild(dot);grid.appendChild(col);
+    }
+    const s=document.getElementById('weekSummary');
+    if(completedFull===0)s.innerHTML='No full days yet this week. Start today.';
+    else if(completedFull>=6)s.innerHTML=`<b>${completedFull}/7</b> days — exceptional week 🔥`;
+    else s.innerHTML=`<b>${completedFull}/7</b> days completed this week`;
+  }
+
+  // POMODORO
+  const POMO_DURATIONS={focus:25*60,short:5*60,long:15*60};
+  let pomoMode='focus',pomoRunning=false,pomoInterval=null;
+  let pomoRemaining=POMO_DURATIONS.focus,pomoTotal=POMO_DURATIONS.focus;
+  const CIRC=2*Math.PI*68;
+
+  function setPomoMode(mode){
+    if(pomoRunning)return;
+    pomoMode=mode;pomoRemaining=pomoTotal=POMO_DURATIONS[mode];
+    ['focus','short','long'].forEach(m=>{
+      const btn=document.getElementById('btn-'+m);
+      btn.className='pomo-mode-btn'+(m===mode?(mode==='focus'?' active':' break-active'):'');
+    });
+    document.getElementById('pomoRing').classList.toggle('break-color',mode!=='focus');
+    updatePomoDisplay();
+  }
+  const PF_CIRC=2*Math.PI*23;
+  function updatePomoDisplay(){
+    const m=Math.floor(pomoRemaining/60),s=pomoRemaining%60;
+    const timeStr=String(m).padStart(2,'0')+':'+String(s).padStart(2,'0');
+    const modeLabel={focus:'FOCUS',short:'SHORT BREAK',long:'LONG BREAK'}[pomoMode];
+    // main
+    document.getElementById('pomoTime').textContent=timeStr;
+    document.getElementById('pomoModeLabel').textContent=modeLabel;
+    const pct=pomoRemaining/pomoTotal;
+    document.getElementById('pomoRing').style.strokeDashoffset=CIRC-(CIRC*pct);
+    // float
+    document.getElementById('pfTime').textContent=timeStr;
+    document.getElementById('pfLabel').textContent=modeLabel;
+    const pfRing=document.getElementById('pfRing');
+    pfRing.style.strokeDashoffset=PF_CIRC-(PF_CIRC*pct);
+    pfRing.classList.toggle('break-color',pomoMode!=='focus');
+    const fl=document.getElementById('pomoFloat');
+    fl.classList.toggle('running',pomoRunning&&pomoMode==='focus');
+    fl.classList.toggle('break-running',pomoRunning&&pomoMode!=='focus');
+    const pfBtn=document.getElementById('pfStartBtn');
+    if(pfBtn){pfBtn.textContent=pomoRunning?'PAUSE':'START';pfBtn.classList.toggle('paused',!pomoRunning&&pomoRemaining<pomoTotal);}
+  }
+  function togglePomo(){
+    if(pomoRunning){
+      clearInterval(pomoInterval);pomoRunning=false;
+      document.getElementById('pomoStartBtn').textContent='RESUME';updatePomoDisplay();
+    }else{
+      pomoRunning=true;
+      document.getElementById('pomoStartBtn').textContent='PAUSE';updatePomoDisplay();
+      pomoInterval=setInterval(()=>{
+        pomoRemaining--;updatePomoDisplay();
+        if(pomoRemaining<=0){
+          clearInterval(pomoInterval);pomoRunning=false;
+          document.getElementById('pomoStartBtn').textContent='START';updatePomoDisplay();
+          if(pomoMode==='focus'){
+            let sessions={};try{sessions=JSON.parse(localStorage.getItem(POMO_KEY))||{};}catch{}
+            const today=getToday();sessions[today]=(sessions[today]||0)+1;
+            localStorage.setItem(POMO_KEY,JSON.stringify(sessions));
+            document.getElementById('pomoSessions').textContent=sessions[today];
+          }
+          try{
+            const ctx=new(window.AudioContext||window.webkitAudioContext)();
+            [0,0.3,0.6].forEach(delay=>{
+              const o=ctx.createOscillator(),g=ctx.createGain();
+              o.connect(g);g.connect(ctx.destination);
+              o.frequency.value=880;o.type='sine';
+              g.gain.setValueAtTime(0,ctx.currentTime+delay);
+              g.gain.linearRampToValueAtTime(0.4,ctx.currentTime+delay+0.05);
+              g.gain.exponentialRampToValueAtTime(0.001,ctx.currentTime+delay+0.4);
+              o.start(ctx.currentTime+delay);o.stop(ctx.currentTime+delay+0.4);
+            });
+          }catch{}
+          if('vibrate' in navigator)navigator.vibrate([200,100,200,100,200]);
+          pomoRemaining=pomoTotal;updatePomoDisplay();
+        }
+      },1000);
+    }
+  }
+  function resetPomo(){
+    clearInterval(pomoInterval);pomoRunning=false;pomoRemaining=pomoTotal;
+    document.getElementById('pomoStartBtn').textContent='START';updatePomoDisplay();
+  }
+  function loadPomoSessions(){
+    let sessions={};try{sessions=JSON.parse(localStorage.getItem(POMO_KEY))||{};}catch{}
+    document.getElementById('pomoSessions').textContent=sessions[getToday()]||0;
+  }
+
+  // SUBJECT TRACKER
+  function loadSubjects(){try{return JSON.parse(localStorage.getItem(SUBJ_KEY))||{dbms:0,os:0,cn:0,dsa:0};}catch{return{dbms:0,os:0,cn:0,dsa:0};}}
+  function saveSubjects(s){localStorage.setItem(SUBJ_KEY,JSON.stringify(s));}
+  function renderSubjects(){
+    const s=loadSubjects();
+    ['dbms','os','cn','dsa'].forEach(k=>{
+      document.getElementById('bar-'+k).style.width=s[k]+'%';
+      document.getElementById('pct-'+k).textContent=s[k]+'%';
+    });
+  }
+  ['dbms','os','cn','dsa'].forEach(subj=>{
+    const wrap=document.getElementById('wrap-'+subj);
+    if(!wrap)return;
+    function handleBarClick(e){
+      const rect=wrap.getBoundingClientRect();
+      const clientX=e.touches?e.touches[0].clientX:e.clientX;
+      const pct=Math.round(Math.max(0,Math.min(100,(clientX-rect.left)/rect.width*100)));
+      const s=loadSubjects();s[subj]=pct;saveSubjects(s);renderSubjects();
+    }
+    wrap.addEventListener('click',handleBarClick);
+    wrap.addEventListener('touchend',e=>{e.preventDefault();handleBarClick(e.changedTouches[0]?{clientX:e.changedTouches[0].clientX}:e);},{passive:false});
+  });
+
+  // STREAK
+  function getStreakData(){try{return JSON.parse(localStorage.getItem(STREAK_KEY))||{count:0};}catch{return{count:0};}}
+  function markToday(){
+    const today=getToday(),log=getStreakLog(),streak=getStreakData();
+    if(log.includes(today)){
+      log.splice(log.indexOf(today),1);streak.count=Math.max(0,streak.count-1);
+      const y=new Date();y.setDate(y.getDate()-1);localStorage.setItem(LAST_DATE_KEY,y.toISOString().split('T')[0]);
+    }else{
+      const last=localStorage.getItem(LAST_DATE_KEY);
+      const y=new Date();y.setDate(y.getDate()-1);
+      streak.count=(last===y.toISOString().split('T')[0])?streak.count+1:1;
+      log.push(today);if(log.length>30)log.shift();localStorage.setItem(LAST_DATE_KEY,today);
+    }
+    localStorage.setItem(STREAK_KEY,JSON.stringify(streak));
+    localStorage.setItem(STREAK_LOG_KEY,JSON.stringify(log));
+    renderStreak();updateStreakBtn(log.includes(today));renderWeekView();
+  }
+  function updateStreakBtn(marked){
+    const b=document.getElementById('streakBtn');
+    if(marked){b.textContent='↩ Undo Today';b.style.cssText='background:#111;color:var(--green);border:1px solid var(--green)';}
+    else{b.textContent='✓ Done Today';b.style.cssText='background:var(--accent);color:#000;border:none';}
+  }
+  function renderStreak(){
+    const streak=getStreakData(),log=getStreakLog();
+    document.getElementById('streakCount').textContent=streak.count;
+    const c=document.getElementById('streakDots');c.innerHTML='';
+    const today=getToday();
+    for(let i=13;i>=0;i--){
+      const d=new Date();d.setDate(d.getDate()-i);
+      const ds=d.toISOString().split('T')[0];
+      const dot=document.createElement('div');dot.className='dot';dot.textContent=d.getDate();
+      if(log.includes(ds))dot.classList.add('active');
+      else if(ds<today)dot.classList.add('missed');
+      if(ds===today&&!log.includes(ds))dot.classList.add('today');
+      c.appendChild(dot);
+    }
+  }
+  function renderMissedBanner(){
+    const missed=getMissedDays();
+    if(missed>=2){
+      document.getElementById('missedBanner').style.display='block';
+      document.getElementById('missedBannerText').textContent=`You missed ${missed} days this week. That's ${missed} days closer to getting rejected. Fix it today.`;
+    }
+  }
+
+  // DAILY REFLECTION
+  function loadReflections(){try{return JSON.parse(localStorage.getItem(REFLECT_KEY))||[];}catch{return[];}}
+  function saveReflection(){
+    const r1=document.getElementById('ref1').value.trim();
+    const r2=document.getElementById('ref2').value.trim();
+    const r3=document.getElementById('ref3').value.trim();
+    if(!r1&&!r2&&!r3)return;
+    const refs=loadReflections(),today=getToday();
+    const idx=refs.findIndex(r=>r.date===today);
+    const entry={date:today,studied:r1,avoided:r2,tomorrow:r3};
+    if(idx>=0)refs[idx]=entry;else refs.unshift(entry);
+    if(refs.length>30)refs.pop();
+    localStorage.setItem(REFLECT_KEY,JSON.stringify(refs));
+    const saved=document.getElementById('reflectionSaved');
+    saved.style.display='block';setTimeout(()=>saved.style.display='none',2500);
+    renderReflectionHistory();
+  }
+  function renderReflectionHistory(){
+    const refs=loadReflections();
+    const hist=document.getElementById('reflectionHistory'),list=document.getElementById('reflectionList');
+    if(refs.length===0){hist.style.display='none';return;}
+    hist.style.display='block';list.innerHTML='';
+    const today=getToday();
+    const todayEntry=refs.find(r=>r.date===today);
+    if(todayEntry){
+      document.getElementById('ref1').value=todayEntry.studied||'';
+      document.getElementById('ref2').value=todayEntry.avoided||'';
+      document.getElementById('ref3').value=todayEntry.tomorrow||'';
+    }
+    refs.slice(0,5).forEach(r=>{
+      const el=document.createElement('div');el.className='rh-entry';
+      el.innerHTML=`<div class="rh-entry-date">${r.date}</div>`+
+        (r.studied?`<div class="rh-entry-row"><b>STUDIED: </b>${r.studied}</div>`:'')  +
+        (r.avoided?`<div class="rh-entry-row"><b>AVOIDED: </b>${r.avoided}</div>`:'')  +
+        (r.tomorrow?`<div class="rh-entry-row"><b>TOMORROW: </b>${r.tomorrow}</div>`:'');
+      list.appendChild(el);
+    });
+  }
+
+  // DATE & COUNTDOWN
+  function renderDate(){
+    const d=new Date().toLocaleDateString('en-US',{weekday:'long',year:'numeric',month:'long',day:'numeric'}).toUpperCase();
+    document.getElementById('todayDate').textContent=d;
+    document.getElementById('reflectionDate').textContent=d;
+  }
+  function renderCountdown(){
+    const diff=Math.ceil((new Date('2026-09-01')-new Date())/86400000);
+    document.getElementById('countdownDays').textContent=diff>0?diff:'0';
+  }
+
+  // PWA
+  let deferredPrompt=null;
+  window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();deferredPrompt=e;document.getElementById('installBanner').style.display='block';});
+  function installPWA(){
+    if(deferredPrompt){deferredPrompt.prompt();deferredPrompt.userChoice.then(()=>{deferredPrompt=null;document.getElementById('installBanner').style.display='none';});}
+    else{alert('Tap browser menu → "Add to Home Screen" to install.');}
+  }
+
+  // NOTIFICATIONS
+  let swReg=null,reminderLoopStarted=false;
+  function askNotifPermission(){
+    if(!('Notification' in window))return;
+    if(Notification.permission==='default')document.getElementById('notifBanner').style.display='block';
+    else if(Notification.permission==='granted')scheduleReminder();
+  }
+  function requestNotifPermission(){
+    Notification.requestPermission().then(p=>{document.getElementById('notifBanner').style.display='none';if(p==='granted')scheduleReminder();});
+  }
+  function scheduleReminder(){
+    if(reminderLoopStarted||!('serviceWorker' in navigator)||!('Notification' in window))return;
+    reminderLoopStarted=true;
+
+    function startLoop(reg){
+      swReg=reg;
+      const tick=()=>{
+        const log=getStreakLog(),hour=new Date().getHours();
+        if(hour>=8&&!log.includes(getToday())){
+          try{swReg.showNotification('⚠️ Open Your Daily Mission',{body:"You haven't checked your tasks today. Placements don't wait.",vibrate:[300,100,300,100,600],requireInteraction:true,tag:'daily-mission'});}catch(e){}
+        }
+        setTimeout(tick,3600000);
+      };
+      tick();
+    }
+
+    if(swReg){
+      startLoop(swReg);
+    }else{
+      navigator.serviceWorker.ready.then(startLoop).catch(()=>{});
+    }
+  }
+  if('serviceWorker' in navigator){
+    navigator.serviceWorker.register('sw.js').then(r=>{swReg=r;}).catch(()=>{});
+  }
+
+  // INIT
+  renderDate();renderCountdown();renderTasks();renderProgress();
+  renderStreak();renderWeekView();renderSubjects();
+  loadPomoSessions();renderReflectionHistory();
+  updateStreakBtn(getStreakLog().includes(getToday()));
+  updatePomoDisplay();
+  initTaskAccessibility();
+  initSlapScreen();
+</script>
+</body>
+</html>
