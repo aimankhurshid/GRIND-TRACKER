@@ -115,6 +115,8 @@
   .notif-text { font-family:'DM Mono',monospace; font-size:11px; color:#50b66a; line-height:1.6; margin-bottom:10px; }
   .notif-btn { background:#39ff6a; color:var(--on-light); border:none; padding:10px 16px; border-radius:4px; font-family:'DM Mono',monospace; font-size:11px; cursor:pointer; text-transform:uppercase; }
   .reset-btn { display:block; width:100%; margin-top:20px; background:transparent; border:1px solid var(--border); color:var(--muted); padding:12px; font-family:'DM Mono',monospace; font-size:10px; letter-spacing:2px; text-transform:uppercase; border-radius:4px; cursor:pointer; }
+  .backup-row { display:flex; gap:8px; margin-top:10px; }
+  .backup-btn { flex:1; margin-top:0; }
   @keyframes fadeIn { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
   .task:nth-child(1){animation-delay:0.05s} .task:nth-child(2){animation-delay:0.1s}
   .task:nth-child(3){animation-delay:0.15s} .task:nth-child(4){animation-delay:0.2s}
@@ -126,7 +128,7 @@
     background:#111; border:1px solid var(--border);
     border-radius:10px; padding:10px 12px;
     display:none; flex-direction:column; align-items:center;
-    gap:6px; min-width:110px;
+    gap:8px; min-width:210px; max-width:260px;
     box-shadow:0 4px 24px rgba(0,0,0,0.7);
     transition:border-color 0.3s;
     touch-action:none;
@@ -141,6 +143,22 @@
   .pf-start { background:var(--accent); color:var(--on-light); }
   .pf-start.paused { background:#1a1500; border:1px solid var(--accent); color:var(--accent); }
   .pf-reset { background:transparent; border:1px solid var(--border); color:var(--muted); }
+  .pf-mode-row { display:flex; gap:6px; width:100%; }
+  .pf-mode-btn {
+    flex:1;
+    padding:6px 4px;
+    border-radius:4px;
+    border:1px solid var(--border);
+    background:#0d0d0d;
+    font-family:'DM Mono',monospace;
+    font-size:8px;
+    letter-spacing:1px;
+    color:var(--muted);
+    cursor:pointer;
+    text-transform:uppercase;
+  }
+  .pf-mode-btn.active { background:#1a1500; border-color:var(--accent); color:var(--accent); }
+  .pf-mode-btn.break-active { background:#0d1a0f; border-color:var(--green); color:var(--green); }
   .pf-ring-wrap { position:relative; width:var(--pf-size,125px); height:var(--pf-size,125px); cursor:move; }
   .pf-ring-wrap svg { width:100%; height:100%; }
   .pf-ring-bg { fill:none; stroke:var(--border); stroke-width:5; }
@@ -168,6 +186,8 @@
     cursor:sw-resize;
     opacity:0.9;
   }
+  .pf-sessions { font-family:'DM Mono',monospace; font-size:9px; color:var(--muted); letter-spacing:1px; }
+  .pf-sessions span { color:var(--accent); }
 
   /* POMODORO SECTION (full) */
   .pomo-card { background:var(--card); border:1px solid var(--border); border-radius:6px; padding:20px 16px; margin-top:8px; text-align:center; }
@@ -425,6 +445,38 @@
     }
     .tile .section-title { margin-top:0; }
   }
+
+  /* MOBILE TUNING: compact sticky pomodoro while keeping all controls */
+  @media (max-width: 640px) {
+    #pomoFloat {
+      min-width:180px;
+      max-width:210px;
+      padding:8px 9px;
+      gap:6px;
+      top:12px;
+      right:12px;
+    }
+    .pf-ring-wrap {
+      width:var(--pf-size,104px);
+      height:var(--pf-size,104px);
+    }
+    .pf-mode-btn {
+      font-size:7px;
+      padding:5px 3px;
+    }
+    .pf-btn {
+      font-size:8px;
+      padding:5px 3px;
+    }
+    .pf-label {
+      font-size:7px;
+      letter-spacing:1px;
+    }
+    .pf-sessions {
+      font-size:8px;
+      letter-spacing:0.6px;
+    }
+  }
 </style>
 </head>
 <body>
@@ -454,6 +506,11 @@
 
 <!-- STICKY MINI POMODORO -->
 <div id="pomoFloat">
+  <div class="pf-mode-row">
+    <button class="pf-mode-btn active" id="pf-btn-focus" onclick="setPomoMode('focus')">Focus</button>
+    <button class="pf-mode-btn" id="pf-btn-short" onclick="setPomoMode('short')">Short</button>
+    <button class="pf-mode-btn" id="pf-btn-long" onclick="setPomoMode('long')">Long</button>
+  </div>
   <div class="pf-ring-wrap">
     <svg viewBox="0 0 56 56" width="125" height="125">
       <circle class="pf-ring-bg" cx="28" cy="28" r="23"/>
@@ -467,6 +524,7 @@
     <button class="pf-btn pf-start" id="pfStartBtn" onclick="togglePomo()">START</button>
     <button class="pf-btn pf-reset" onclick="resetPomo()">↺</button>
   </div>
+  <div class="pf-sessions">Sessions today: <span id="pfSessions">0</span> 🍅</div>
 </div>
 
 <div id="weekPhotoChoiceModal">
@@ -566,31 +624,6 @@
     </div>
   </div>
 
-  <!-- POMODORO -->
-  <div class="tile tile-pomo">
-    <div class="section-title">⏱ Pomodoro Timer</div>
-    <div class="pomo-card">
-    <div class="pomo-mode-row">
-      <button class="pomo-mode-btn active" id="btn-focus" onclick="setPomoMode('focus')">🍅 Focus 25m</button>
-      <button class="pomo-mode-btn" id="btn-short" onclick="setPomoMode('short')">☕ Break 5m</button>
-      <button class="pomo-mode-btn" id="btn-long" onclick="setPomoMode('long')">🛌 Long 15m</button>
-    </div>
-    <div class="pomo-ring-wrap">
-      <svg viewBox="0 0 160 160" width="100%" height="100%">
-        <circle class="pomo-ring-bg" cx="80" cy="80" r="68"/>
-        <circle class="pomo-ring-fg" id="pomoRing" cx="80" cy="80" r="68" stroke-dasharray="427" stroke-dashoffset="0"/>
-      </svg>
-      <div class="pomo-time" id="pomoTime">25:00</div>
-      <div class="pomo-label" id="pomoModeLabel">FOCUS</div>
-    </div>
-      <div class="pomo-btns">
-        <button class="pomo-btn pomo-start" id="pomoStartBtn" onclick="togglePomo()">START</button>
-        <button class="pomo-btn pomo-reset" onclick="resetPomo()">RESET</button>
-      </div>
-      <div class="pomo-sessions">Sessions today: <span id="pomoSessions">0</span> 🍅</div>
-    </div>
-  </div>
-
   <!-- SUBJECT TRACKER -->
   <div class="tile tile-subjects">
     <div class="section-title">📚 Subject Progress — tap bar to update</div>
@@ -659,6 +692,11 @@
       <div class="notif-text">🔔 Allow notifications so this reminds you on your lock screen.</div>
       <button class="notif-btn" onclick="requestNotifPermission()">Allow Reminders</button>
     </div>
+    <div class="backup-row">
+      <button class="reset-btn backup-btn" onclick="exportBackup()">⬇ Export Backup</button>
+      <button class="reset-btn backup-btn" onclick="triggerImportBackup()">⬆ Import Backup</button>
+    </div>
+    <input id="backupFileInput" type="file" accept="application/json" style="display:none">
     <button class="reset-btn" onclick="resetDay()">↺ Reset Today's Tasks</button>
   </div>
 </div>
@@ -668,10 +706,64 @@
   const STREAK_LOG_KEY='cse_streak_log', SNOOZE_KEY='cse_snooze_until';
   const SUBJ_KEY='cse_subjects', REFLECT_KEY='cse_reflections', POMO_KEY='cse_pomo';
   const WEEK_PHOTO_KEY='cse_week_photos';
+  const APP_DB_NAME='daily_mission_db', APP_DB_VERSION=1, APP_DB_STORE='kv';
   const DEV_BYPASS_KEY='cse_dev_bypass_slap';
   let pendingWeekPhotoDate=null;
   let pendingWeekChoiceDate=null;
   let weekPhotoStream=null;
+  let weekPhotosCache=(function(){
+    try{return JSON.parse(localStorage.getItem(WEEK_PHOTO_KEY))||{};}catch{return{};}
+  })();
+
+  // IndexedDB (free local persistence, better for image storage than localStorage)
+  function openAppDb(){
+    return new Promise((resolve,reject)=>{
+      if(!('indexedDB' in window))return reject(new Error('indexedDB unavailable'));
+      const req=indexedDB.open(APP_DB_NAME,APP_DB_VERSION);
+      req.onupgradeneeded=()=>{
+        const db=req.result;
+        if(!db.objectStoreNames.contains(APP_DB_STORE))db.createObjectStore(APP_DB_STORE);
+      };
+      req.onsuccess=()=>resolve(req.result);
+      req.onerror=()=>reject(req.error||new Error('indexedDB open failed'));
+    });
+  }
+  function dbGetValue(key){
+    return openAppDb().then(db=>new Promise((resolve,reject)=>{
+      const tx=db.transaction(APP_DB_STORE,'readonly');
+      const store=tx.objectStore(APP_DB_STORE);
+      const req=store.get(key);
+      req.onsuccess=()=>resolve(req.result);
+      req.onerror=()=>reject(req.error||new Error('indexedDB read failed'));
+      tx.oncomplete=()=>db.close();
+      tx.onerror=()=>db.close();
+    }));
+  }
+  function dbSetValue(key,val){
+    return openAppDb().then(db=>new Promise((resolve,reject)=>{
+      const tx=db.transaction(APP_DB_STORE,'readwrite');
+      const store=tx.objectStore(APP_DB_STORE);
+      store.put(val,key);
+      tx.oncomplete=()=>{db.close();resolve();};
+      tx.onerror=()=>{db.close();reject(tx.error||new Error('indexedDB write failed'));};
+    }));
+  }
+  async function initWeekPhotoStorage(){
+    try{
+      const stored=await dbGetValue(WEEK_PHOTO_KEY);
+      if(stored&&typeof stored==='object'){
+        weekPhotosCache=stored;
+      }else{
+        // One-time migration from localStorage if IndexedDB is empty.
+        if(weekPhotosCache&&Object.keys(weekPhotosCache).length>0){
+          await dbSetValue(WEEK_PHOTO_KEY,weekPhotosCache);
+        }
+      }
+    }catch(_){
+      // Fallback remains localStorage cache.
+    }
+    renderWeekView();
+  }
 
   const QUOTES = [
     "While you slept, someone in your batch solved 3 LeetCode problems.\nThey're getting your job.",
@@ -838,11 +930,84 @@
   }
 
   // WEEK VIEW
+  // TODO(next): refine the week proof UX into an even simpler one-step flow
+  // (cleaner prompt hierarchy, fewer modal transitions, faster capture path).
   function loadWeekPhotos(){
-    try{return JSON.parse(localStorage.getItem(WEEK_PHOTO_KEY))||{};}catch{return{};}
+    return weekPhotosCache;
   }
   function saveWeekPhotos(v){
+    weekPhotosCache=v;
     localStorage.setItem(WEEK_PHOTO_KEY,JSON.stringify(v));
+    dbSetValue(WEEK_PHOTO_KEY,v).catch(()=>{});
+  }
+
+  // BACKUP / RESTORE
+  function buildBackupData(){
+    return {
+      app:'daily-mission',
+      version:1,
+      exportedAt:new Date().toISOString(),
+      data:{
+        [TASKS_KEY]:localStorage.getItem(TASKS_KEY),
+        [STREAK_KEY]:localStorage.getItem(STREAK_KEY),
+        [LAST_DATE_KEY]:localStorage.getItem(LAST_DATE_KEY),
+        [STREAK_LOG_KEY]:localStorage.getItem(STREAK_LOG_KEY),
+        [SNOOZE_KEY]:localStorage.getItem(SNOOZE_KEY),
+        [SUBJ_KEY]:localStorage.getItem(SUBJ_KEY),
+        [REFLECT_KEY]:localStorage.getItem(REFLECT_KEY),
+        [POMO_KEY]:localStorage.getItem(POMO_KEY),
+        [WEEK_PHOTO_KEY]:JSON.stringify(weekPhotosCache||{})
+      }
+    };
+  }
+  function exportBackup(){
+    try{
+      const blob=new Blob([JSON.stringify(buildBackupData())],{type:'application/json'});
+      const url=URL.createObjectURL(blob);
+      const a=document.createElement('a');
+      const day=getToday();
+      a.href=url;
+      a.download=`daily-mission-backup-${day}.json`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      alert('Backup exported successfully. Keep this file safe.');
+    }catch(_){
+      alert('Backup export failed.');
+    }
+  }
+  function triggerImportBackup(){
+    const input=document.getElementById('backupFileInput');
+    if(!input)return;
+    input.value='';
+    input.click();
+  }
+  function handleImportBackup(e){
+    const file=e.target.files&&e.target.files[0];
+    if(!file)return;
+    const reader=new FileReader();
+    reader.onload=async()=>{
+      try{
+        const parsed=JSON.parse(String(reader.result||'{}'));
+        if(parsed.app!=='daily-mission'||!parsed.data)throw new Error('Invalid backup format');
+        const keys=[TASKS_KEY,STREAK_KEY,LAST_DATE_KEY,STREAK_LOG_KEY,SNOOZE_KEY,SUBJ_KEY,REFLECT_KEY,POMO_KEY,WEEK_PHOTO_KEY];
+        keys.forEach(k=>{
+          const v=parsed.data[k];
+          if(v===null||v===undefined)localStorage.removeItem(k);
+          else localStorage.setItem(k,String(v));
+        });
+        try{
+          weekPhotosCache=JSON.parse(localStorage.getItem(WEEK_PHOTO_KEY)||'{}')||{};
+        }catch{weekPhotosCache={};}
+        await dbSetValue(WEEK_PHOTO_KEY,weekPhotosCache);
+        alert('Backup imported. Dashboard will refresh now.');
+        window.location.reload();
+      }catch(_){
+        alert('Import failed. Please select a valid backup JSON file.');
+      }
+    };
+    reader.readAsText(file);
   }
   function removeWeekPhoto(date){
     const photos=loadWeekPhotos();
@@ -892,19 +1057,56 @@
     if(!pendingWeekPhotoDate)return;
     const video=document.getElementById('weekPhotoVideo');
     if(!video||!video.videoWidth||!video.videoHeight)return;
+    const maxSide=960;
+    const scale=Math.min(1,maxSide/Math.max(video.videoWidth,video.videoHeight));
     const canvas=document.createElement('canvas');
-    canvas.width=video.videoWidth;
-    canvas.height=video.videoHeight;
+    canvas.width=Math.round(video.videoWidth*scale);
+    canvas.height=Math.round(video.videoHeight*scale);
     const ctx=canvas.getContext('2d');
     if(!ctx)return;
     ctx.drawImage(video,0,0,canvas.width,canvas.height);
-    const dataUrl=canvas.toDataURL('image/jpeg',0.82);
+    const dataUrl=canvas.toDataURL('image/jpeg',0.72);
     const photos=loadWeekPhotos();
     photos[pendingWeekPhotoDate]=dataUrl;
     saveWeekPhotos(photos);
     pendingWeekPhotoDate=null;
     closeWeekPhotoCamera();
     renderWeekView();
+  }
+  function initWeekPhotoKeyboardShortcuts(){
+    document.addEventListener('keydown',e=>{
+      const choiceModal=document.getElementById('weekPhotoChoiceModal');
+      const cameraModal=document.getElementById('weekPhotoModal');
+      const choiceOpen=choiceModal&&choiceModal.style.display==='flex';
+      const cameraOpen=cameraModal&&cameraModal.style.display==='flex';
+      if(!choiceOpen&&!cameraOpen)return;
+
+      // Esc: keep tick (close choice), or close camera without saving.
+      if(e.key==='Escape'){
+        e.preventDefault();
+        if(cameraOpen){
+          pendingWeekPhotoDate=null;
+          closeWeekPhotoCamera();
+          return;
+        }
+        closeWeekChoiceModal();
+        return;
+      }
+
+      // Enter/Space: capture flow.
+      if(e.key==='Enter'||e.key===' '){
+        e.preventDefault();
+        if(choiceOpen){
+          const date=pendingWeekChoiceDate;
+          closeWeekChoiceModal();
+          if(date)openWeekPhotoCamera(date);
+          return;
+        }
+        if(cameraOpen){
+          captureWeekPhoto();
+        }
+      }
+    });
   }
 
   function renderWeekView(){
@@ -959,10 +1161,13 @@
     if(pomoRunning)return;
     pomoMode=mode;pomoRemaining=pomoTotal=POMO_DURATIONS[mode];
     ['focus','short','long'].forEach(m=>{
-      const btn=document.getElementById('btn-'+m);
-      btn.className='pomo-mode-btn'+(m===mode?(mode==='focus'?' active':' break-active'):'');
+      const mainBtn=document.getElementById('btn-'+m);
+      if(mainBtn)mainBtn.className='pomo-mode-btn'+(m===mode?(mode==='focus'?' active':' break-active'):'');
+      const floatBtn=document.getElementById('pf-btn-'+m);
+      if(floatBtn)floatBtn.className='pf-mode-btn'+(m===mode?(mode==='focus'?' active':' break-active'):'');
     });
-    document.getElementById('pomoRing').classList.toggle('break-color',mode!=='focus');
+    const mainRing=document.getElementById('pomoRing');
+    if(mainRing)mainRing.classList.toggle('break-color',mode!=='focus');
     updatePomoDisplay();
   }
   const PF_CIRC=2*Math.PI*23;
@@ -970,11 +1175,14 @@
     const m=Math.floor(pomoRemaining/60),s=pomoRemaining%60;
     const timeStr=String(m).padStart(2,'0')+':'+String(s).padStart(2,'0');
     const modeLabel={focus:'FOCUS',short:'SHORT BREAK',long:'LONG BREAK'}[pomoMode];
-    // main
-    document.getElementById('pomoTime').textContent=timeStr;
-    document.getElementById('pomoModeLabel').textContent=modeLabel;
+    // main (if full card exists)
+    const mainTime=document.getElementById('pomoTime');
+    const mainLabel=document.getElementById('pomoModeLabel');
+    const mainRing=document.getElementById('pomoRing');
+    if(mainTime)mainTime.textContent=timeStr;
+    if(mainLabel)mainLabel.textContent=modeLabel;
     const pct=pomoRemaining/pomoTotal;
-    document.getElementById('pomoRing').style.strokeDashoffset=CIRC-(CIRC*pct);
+    if(mainRing)mainRing.style.strokeDashoffset=CIRC-(CIRC*pct);
     // float
     document.getElementById('pfTime').textContent=timeStr;
     document.getElementById('pfLabel').textContent=modeLabel;
@@ -985,7 +1193,66 @@
     fl.classList.toggle('running',pomoRunning&&pomoMode==='focus');
     fl.classList.toggle('break-running',pomoRunning&&pomoMode!=='focus');
     const pfBtn=document.getElementById('pfStartBtn');
-    if(pfBtn){pfBtn.textContent=pomoRunning?'PAUSE':'START';pfBtn.classList.toggle('paused',!pomoRunning&&pomoRemaining<pomoTotal);}
+    if(pfBtn){
+      const isPaused=!pomoRunning&&pomoRemaining<pomoTotal;
+      pfBtn.textContent=pomoRunning?'PAUSE':(isPaused?'RESUME':'START');
+      pfBtn.classList.toggle('paused',isPaused);
+    }
+    loadPomoSessions();
+  }
+
+  function playPomoTimeoutAlarm(){
+    try{
+      const ctx=new(window.AudioContext||window.webkitAudioContext)();
+      const master=ctx.createGain();
+      master.gain.value=0.95;
+      master.connect(ctx.destination);
+      const pattern=[0,0.2,0.4,0.8,1.0,1.2,1.6,1.8];
+      pattern.forEach((offset,i)=>{
+        const osc=ctx.createOscillator();
+        const gain=ctx.createGain();
+        osc.connect(gain);gain.connect(master);
+        osc.type=i%2===0?'square':'sawtooth';
+        osc.frequency.value=i%2===0?980:1460;
+        const t=ctx.currentTime+offset;
+        gain.gain.setValueAtTime(0.001,t);
+        gain.gain.exponentialRampToValueAtTime(0.5,t+0.03);
+        gain.gain.exponentialRampToValueAtTime(0.001,t+0.16);
+        osc.start(t);
+        osc.stop(t+0.17);
+      });
+    }catch(_){ }
+  }
+
+  function handlePomoComplete(opts){
+    const silent=opts&&opts.silent;
+    clearInterval(pomoInterval);
+    pomoRunning=false;
+    const resetBtn=document.getElementById('pomoStartBtn');
+    if(resetBtn)resetBtn.textContent='START';
+    if(pomoMode==='focus'){
+      let sessions={};try{sessions=JSON.parse(localStorage.getItem(POMO_KEY))||{};}catch{}
+      const today=getToday();
+      sessions[today]=(sessions[today]||0)+1;
+      localStorage.setItem(POMO_KEY,JSON.stringify(sessions));
+      loadPomoSessions();
+    }
+    if(!silent){
+      playPomoTimeoutAlarm();
+      if('vibrate' in navigator)navigator.vibrate([300,120,300,120,500,120,300]);
+    }
+    pomoRemaining=pomoTotal;
+    updatePomoDisplay();
+  }
+
+  function pomoTick(){
+    if(!pomoRunning)return;
+    pomoRemaining--;
+    if(pomoRemaining<=0){
+      handlePomoComplete();
+      return;
+    }
+    updatePomoDisplay();
   }
 
   // Sticky pomodoro drag + resize
@@ -993,8 +1260,21 @@
     const float=document.getElementById('pomoFloat');
     if(!float)return;
     let mode=null; // 'move' or 'resize'
-    let startX=0,startY=0,startLeft=0,startTop=0,startSize=0;
+    let startX=0,startY=0,startLeft=0,startTop=0,startSize=0,startRight=0;
     const sizeVar='--pf-size';
+
+    function clamp(n,min,max){ return Math.min(max,Math.max(min,n)); }
+    function keepFloatInViewport(){
+      const rect=float.getBoundingClientRect();
+      const maxLeft=Math.max(0,window.innerWidth-rect.width);
+      const maxTop=Math.max(0,window.innerHeight-rect.height);
+      const currentLeft=parseFloat(float.style.left);
+      const currentTop=parseFloat(float.style.top);
+      const left=Number.isFinite(currentLeft)?currentLeft:rect.left;
+      const top=Number.isFinite(currentTop)?currentTop:rect.top;
+      float.style.left=clamp(left,0,maxLeft)+'px';
+      float.style.top=clamp(top,0,maxTop)+'px';
+    }
 
     function pointerDown(e){
       if(e.button!==0 && e.pointerType!=='touch')return;
@@ -1009,6 +1289,7 @@
       }
       startX=e.clientX;startY=e.clientY;
       startLeft=rect.left;startTop=rect.top;
+      startRight=rect.right;
       const rootStyle=getComputedStyle(document.documentElement);
       const currentSize=parseFloat(rootStyle.getPropertyValue(sizeVar))||rect.width;
       startSize=currentSize;
@@ -1026,17 +1307,23 @@
       }
       const dx=e.clientX-startX,dy=e.clientY-startY;
       if(mode==='move'){
-        float.style.left=startLeft+dx+'px';
-        float.style.top=startTop+dy+'px';
+        const rect=float.getBoundingClientRect();
+        const maxLeft=Math.max(0,window.innerWidth-rect.width);
+        const maxTop=Math.max(0,window.innerHeight-rect.height);
+        float.style.left=clamp(startLeft+dx,0,maxLeft)+'px';
+        float.style.top=clamp(startTop+dy,0,maxTop)+'px';
       }else if(mode==='resize'){
         // Resize while keeping the outer (right) edge roughly fixed,
         // so the card visually grows inward (to the left) from the screen edge.
         const delta=dy; // down (dy>0) -> positive -> larger
         const newSize=Math.max(80,Math.min(220,startSize+delta));
-        const rightEdge=startLeft+startSize;
-        const newLeft=rightEdge-newSize;
-        float.style.left=newLeft+'px';
         document.documentElement.style.setProperty(sizeVar,newSize+'px');
+        const rect=float.getBoundingClientRect();
+        const maxLeft=Math.max(0,window.innerWidth-rect.width);
+        const newLeft=clamp(startRight-rect.width,0,maxLeft);
+        const maxTop=Math.max(0,window.innerHeight-rect.height);
+        float.style.left=newLeft+'px';
+        float.style.top=clamp(startTop,0,maxTop)+'px';
       }
     }
 
@@ -1044,56 +1331,104 @@
       if(!mode)return;
       mode=null;
       try{float.releasePointerCapture(e.pointerId);}catch(_){}
+      keepFloatInViewport();
     }
 
     float.addEventListener('pointerdown',pointerDown);
     float.addEventListener('pointermove',pointerMove);
     float.addEventListener('pointerup',pointerUp);
     float.addEventListener('pointercancel',pointerUp);
+    window.addEventListener('resize',keepFloatInViewport);
   }
   function togglePomo(){
     if(pomoRunning){
       clearInterval(pomoInterval);pomoRunning=false;
-      document.getElementById('pomoStartBtn').textContent='RESUME';updatePomoDisplay();
+      const mainBtn=document.getElementById('pomoStartBtn');
+      if(mainBtn)mainBtn.textContent='RESUME';
+      updatePomoDisplay();
     }else{
       pomoRunning=true;
-      document.getElementById('pomoStartBtn').textContent='PAUSE';updatePomoDisplay();
-      pomoInterval=setInterval(()=>{
-        pomoRemaining--;updatePomoDisplay();
-        if(pomoRemaining<=0){
-          clearInterval(pomoInterval);pomoRunning=false;
-          document.getElementById('pomoStartBtn').textContent='START';updatePomoDisplay();
-          if(pomoMode==='focus'){
-            let sessions={};try{sessions=JSON.parse(localStorage.getItem(POMO_KEY))||{};}catch{}
-            const today=getToday();sessions[today]=(sessions[today]||0)+1;
-            localStorage.setItem(POMO_KEY,JSON.stringify(sessions));
-            document.getElementById('pomoSessions').textContent=sessions[today];
-          }
-          try{
-            const ctx=new(window.AudioContext||window.webkitAudioContext)();
-            [0,0.3,0.6].forEach(delay=>{
-              const o=ctx.createOscillator(),g=ctx.createGain();
-              o.connect(g);g.connect(ctx.destination);
-              o.frequency.value=880;o.type='sine';
-              g.gain.setValueAtTime(0,ctx.currentTime+delay);
-              g.gain.linearRampToValueAtTime(0.4,ctx.currentTime+delay+0.05);
-              g.gain.exponentialRampToValueAtTime(0.001,ctx.currentTime+delay+0.4);
-              o.start(ctx.currentTime+delay);o.stop(ctx.currentTime+delay+0.4);
-            });
-          }catch{}
-          if('vibrate' in navigator)navigator.vibrate([200,100,200,100,200]);
-          pomoRemaining=pomoTotal;updatePomoDisplay();
-        }
-      },1000);
+      const mainBtn=document.getElementById('pomoStartBtn');
+      if(mainBtn)mainBtn.textContent='PAUSE';
+      updatePomoDisplay();
+      clearInterval(pomoInterval);
+      pomoInterval=setInterval(pomoTick,1000);
     }
   }
   function resetPomo(){
     clearInterval(pomoInterval);pomoRunning=false;pomoRemaining=pomoTotal;
-    document.getElementById('pomoStartBtn').textContent='START';updatePomoDisplay();
+    const mainBtn=document.getElementById('pomoStartBtn');
+    if(mainBtn)mainBtn.textContent='START';
+    updatePomoDisplay();
   }
   function loadPomoSessions(){
     let sessions={};try{sessions=JSON.parse(localStorage.getItem(POMO_KEY))||{};}catch{}
-    document.getElementById('pomoSessions').textContent=sessions[getToday()]||0;
+    const count=sessions[getToday()]||0;
+    const mainSessions=document.getElementById('pomoSessions');
+    const floatSessions=document.getElementById('pfSessions');
+    if(mainSessions)mainSessions.textContent=count;
+    if(floatSessions)floatSessions.textContent=count;
+  }
+
+  function runPomoUnitTests(){
+    const snapshot={
+      mode:pomoMode,
+      running:pomoRunning,
+      remaining:pomoRemaining,
+      total:pomoTotal,
+      interval:pomoInterval,
+      pomoStore:localStorage.getItem(POMO_KEY)
+    };
+    const results=[];
+    function assert(cond,name){ if(!cond)throw new Error(name); results.push(name); }
+    try{
+      clearInterval(pomoInterval);
+      pomoRunning=false;
+      pomoMode='focus';
+      pomoTotal=POMO_DURATIONS.focus;
+      pomoRemaining=pomoTotal;
+      updatePomoDisplay();
+
+      togglePomo();
+      assert(pomoRunning===true,'start toggles running=true');
+      togglePomo();
+      assert(pomoRunning===false,'pause toggles running=false');
+
+      const beforeTick=10;
+      pomoRemaining=beforeTick;
+      pomoTotal=beforeTick;
+      pomoRunning=true;
+      pomoTick();
+      assert(pomoRemaining===beforeTick-1,'tick decrements remaining by 1');
+
+      const beforeSessions=(function(){try{const s=JSON.parse(localStorage.getItem(POMO_KEY))||{};return s[getToday()]||0;}catch{return 0;}})();
+      pomoRunning=true;
+      pomoMode='focus';
+      pomoTotal=1;
+      pomoRemaining=1;
+      handlePomoComplete({silent:true});
+      const afterSessions=(function(){try{const s=JSON.parse(localStorage.getItem(POMO_KEY))||{};return s[getToday()]||0;}catch{return 0;}})();
+      assert(afterSessions===beforeSessions+1,'focus completion increments session count');
+
+      resetPomo();
+      assert(pomoRunning===false&&pomoRemaining===pomoTotal,'reset restores full timer and stopped state');
+      console.log('Pomodoro tests passed:',results);
+    }catch(err){
+      console.error('Pomodoro test failed:',err);
+    }finally{
+      clearInterval(pomoInterval);
+      pomoMode=snapshot.mode;
+      pomoRunning=snapshot.running;
+      pomoRemaining=snapshot.remaining;
+      pomoTotal=snapshot.total;
+      if(snapshot.pomoStore===null)localStorage.removeItem(POMO_KEY);
+      else localStorage.setItem(POMO_KEY,snapshot.pomoStore);
+      if(snapshot.running){
+        clearInterval(pomoInterval);
+        pomoInterval=setInterval(pomoTick,1000);
+      }
+      updatePomoDisplay();
+    }
   }
 
   // SUBJECT TRACKER
@@ -1267,6 +1602,7 @@
   // INIT
   renderDate();renderCountdown();renderTasks();renderProgress();
   renderStreak();renderWeekView();renderSubjects();
+  initWeekPhotoStorage();
   loadPomoSessions();renderReflectionHistory();
   updateStreakBtn(getStreakLog().includes(getToday()));
   updatePomoDisplay();
@@ -1294,6 +1630,12 @@
   }
   const weekPhotoCaptureBtn=document.getElementById('weekPhotoCaptureBtn');
   if(weekPhotoCaptureBtn)weekPhotoCaptureBtn.addEventListener('click',captureWeekPhoto);
+  const backupFileInput=document.getElementById('backupFileInput');
+  if(backupFileInput)backupFileInput.addEventListener('change',handleImportBackup);
+  // Expose manual test trigger and run once at startup for quick health check.
+  window.runPomoUnitTests=runPomoUnitTests;
+  runPomoUnitTests();
+  initWeekPhotoKeyboardShortcuts();
   initSlapScreen();
   initPomoFloatDrag();
 </script>
