@@ -1,0 +1,134 @@
+  /* STICKY MINI POMODORO */
+  #pomoFloat {
+    position:fixed; top:16px; right:16px; z-index:9000;
+    background:#111; border:1px solid var(--border);
+    border-radius:10px; padding:10px 12px;
+    display:none; flex-direction:column; align-items:center;
+    gap:8px; min-width:210px; max-width:260px;
+    box-shadow:0 4px 24px rgba(0,0,0,0.7);
+    transition:border-color 0.3s;
+    touch-action:none;
+    overflow:visible;
+  }
+  #pomoFloat.running { border-color:#ff4d3d; }
+  #pomoFloat.break-running { border-color:var(--green); }
+  .pf-time { font-family:'Bebas Neue',sans-serif; font-size:28px; color:var(--text); line-height:1; letter-spacing:1px; }
+  .pf-label { font-family:'DM Mono',monospace; font-size:8px; letter-spacing:2px; color:var(--muted); text-transform:uppercase; }
+  .pf-btns { display:flex; gap:5px; width:100%; }
+  .pf-btn { flex:1; padding:5px 4px; border-radius:4px; border:none; font-family:'DM Mono',monospace; font-size:9px; letter-spacing:1px; cursor:pointer; text-transform:uppercase; }
+  .pf-start { background:var(--accent); color:var(--on-light); }
+  .pf-start.paused { background:#1a1500; border:1px solid var(--accent); color:var(--accent); }
+  .pf-reset { background:transparent; border:1px solid var(--border); color:var(--muted); }
+  .pf-mode-row { display:flex; gap:6px; width:100%; }
+  .pf-mode-btn {
+    flex:1;
+    padding:6px 4px;
+    border-radius:4px;
+    border:1px solid var(--border);
+    background:#0d0d0d;
+    font-family:'DM Mono',monospace;
+    font-size:8px;
+    letter-spacing:1px;
+    color:var(--muted);
+    cursor:pointer;
+    text-transform:uppercase;
+  }
+  .pf-mode-btn.active { background:#1a1500; border-color:var(--accent); color:var(--accent); }
+  .pf-mode-btn.break-active { background:#0d1a0f; border-color:var(--green); color:var(--green); }
+  .pf-ring-wrap { position:relative; width:var(--pf-size,125px); height:var(--pf-size,125px); cursor:move; }
+  .pf-ring-wrap svg { width:100%; height:100%; }
+  .pf-ring-bg { fill:none; stroke:var(--border); stroke-width:5; }
+  .pf-ring-fg {
+    fill:none;
+    stroke:#708090;
+    stroke-width:5;
+    stroke-linecap:round;
+    transition:stroke-dashoffset 1s linear, stroke 0.3s, filter 0.3s;
+    transform:rotate(-90deg);
+    transform-origin:28px 28px;
+    filter:drop-shadow(0 0 1px rgba(112,128,144,0.25));
+  }
+  .pf-ring-fg.is-running {
+    stroke:#ff4d3d;
+    filter:drop-shadow(0 0 2px rgba(255,77,61,0.36)) drop-shadow(0 0 4px rgba(255,77,61,0.2));
+  }
+  .pf-ring-fg.break-color {
+    stroke:#33784d;
+    filter:drop-shadow(0 0 1px rgba(51,120,77,0.24));
+  }
+  .pf-ring-fg.break-color.is-running {
+    stroke:var(--green);
+    filter:drop-shadow(0 0 2px rgba(57,255,106,0.34)) drop-shadow(0 0 4px rgba(57,255,106,0.18));
+  }
+  .pf-ring-time {
+    position:absolute;
+    top:50%;
+    left:50%;
+    transform:translate(-50%,-50%);
+    font-family:'Bebas Neue',sans-serif;
+    font-size:calc(var(--pf-size,125px)*0.24);
+    transition:font-size 0.12s ease-out;
+    color:var(--text);
+    white-space:nowrap;
+  }
+  .pf-resize {
+    position:absolute;
+    left:-1px;
+    bottom:-1px;
+    width:12px;
+    height:12px;
+    border-left:1px solid #ff3b3b;
+    border-bottom:1px solid #ff3b3b;
+    border-bottom-left-radius:10px;
+    cursor:sw-resize;
+    opacity:0.9;
+    z-index:12;
+    pointer-events:auto;
+  }
+  .pf-sessions { font-family:'DM Mono',monospace; font-size:9px; color:var(--muted); letter-spacing:1px; }
+  .pf-sessions span { color:var(--accent); }
+
+  /* POMODORO SECTION (full) */
+  .pomo-card { background:var(--card); border:1px solid var(--border); border-radius:6px; padding:20px 16px; margin-top:8px; text-align:center; }
+  .pomo-mode-row { display:flex; gap:6px; margin-bottom:18px; justify-content:center; }
+  .pomo-mode-btn { flex:1; max-width:110px; padding:7px 4px; border-radius:4px; border:1px solid var(--border); background:#0d0d0d; font-family:'DM Mono',monospace; font-size:9px; letter-spacing:1px; color:var(--muted); cursor:pointer; text-transform:uppercase; transition:all 0.2s; }
+  .pomo-mode-btn.active { background:#1a1500; border-color:var(--accent); color:var(--accent); }
+  .pomo-mode-btn.break-active { background:#0d1a0f; border-color:var(--green); color:var(--green); }
+  .pomo-ring-wrap {
+    position:relative;
+    width:min(180px,70%);
+    aspect-ratio:1/1;
+    margin:0 auto 18px;
+  }
+  .pomo-ring-bg { fill:none; stroke:var(--border); stroke-width:8; }
+  .pomo-ring-fg {
+    fill:none;
+    stroke:#708090;
+    stroke-width:8;
+    stroke-linecap:round;
+    transition:stroke-dashoffset 1s linear, stroke 0.3s, filter 0.3s;
+    transform:rotate(-90deg);
+    transform-origin:80px 80px;
+    filter:drop-shadow(0 0 1px rgba(112,128,144,0.24));
+  }
+  .pomo-ring-fg.is-running {
+    stroke:#ff4d3d;
+    filter:drop-shadow(0 0 2px rgba(255,77,61,0.34)) drop-shadow(0 0 4px rgba(255,77,61,0.18));
+  }
+  .pomo-ring-fg.break-color {
+    stroke:#33784d;
+    filter:drop-shadow(0 0 1px rgba(51,120,77,0.24));
+  }
+  .pomo-ring-fg.break-color.is-running {
+    stroke:var(--green);
+    filter:drop-shadow(0 0 2px rgba(57,255,106,0.35)) drop-shadow(0 0 4px rgba(57,255,106,0.2));
+  }
+  .pomo-time { position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); font-family:'Bebas Neue',sans-serif; font-size:clamp(28px,6vw,48px); color:var(--text); line-height:1; }
+  .pomo-label { position:absolute; bottom:10%; left:50%; transform:translateX(-50%); font-family:'DM Mono',monospace; font-size:9px; letter-spacing:2px; color:var(--muted); text-transform:uppercase; white-space:nowrap; }
+  .pomo-btns { display:flex; gap:10px; justify-content:center; margin-bottom:12px; }
+  .pomo-btn { padding:12px 28px; border-radius:4px; border:none; font-family:'DM Mono',monospace; font-size:12px; font-weight:500; letter-spacing:1px; text-transform:uppercase; cursor:pointer; transition:all 0.2s; }
+  .pomo-start { background:var(--accent); color:var(--on-light); }
+  .pomo-reset { background:transparent; border:1px solid var(--border); color:var(--muted); }
+  .pomo-sessions { font-family:'DM Mono',monospace; font-size:10px; color:var(--muted); letter-spacing:1px; }
+  .pomo-sessions span { color:var(--accent); font-size:14px; }
+

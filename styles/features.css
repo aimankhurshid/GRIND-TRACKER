@@ -1,0 +1,308 @@
+  /* SUBJECT TRACKER */
+  .subject-card { background:var(--card); border:1px solid var(--border); border-radius:6px; padding:16px; margin-top:8px; }
+  .subject-row { margin-bottom:16px; }
+  .subject-row:last-child { margin-bottom:0; }
+  .subject-top { display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; }
+  .subject-name { font-size:13px; font-weight:500; color:var(--text); }
+  .subject-pct { font-family:'DM Mono',monospace; font-size:12px; color:var(--accent); }
+  .subject-bar-wrap { background:var(--border); border-radius:4px; height:10px; overflow:hidden; position:relative; cursor:pointer; }
+  .subject-bar { height:100%; border-radius:4px; transition:width 0.3s ease; }
+  .bar-dbms { background:var(--blue); }
+  .bar-os { background:var(--purple); }
+  .bar-cn { background:var(--green); }
+  .bar-dsa { background:var(--accent); }
+  .subject-hint { font-family:'DM Mono',monospace; font-size:9px; color:#3f3f3f; margin-top:4px; letter-spacing:1px; }
+
+  /* WEEK VIEW */
+  .week-card { background:var(--card); border:1px solid var(--border); border-radius:6px; padding:16px; margin-top:8px; }
+  .week-grid { display:grid; grid-template-columns:repeat(7,1fr); gap:5px; }
+  .week-day { display:flex; flex-direction:column; align-items:center; gap:5px; }
+  .week-day-label { font-family:'DM Mono',monospace; font-size:8px; color:#989898; letter-spacing:1px; text-transform:uppercase; }
+  .week-day-dot { width:100%; aspect-ratio:1; border-radius:6px; background:var(--border); display:flex; align-items:center; justify-content:center; font-size:10px; font-family:'DM Mono',monospace; color:#aaaaaa; flex-direction:column; gap:1px; min-width:34px; }
+  .week-day-dot.full { background:var(--green); border:1px solid var(--green); color:var(--on-light); font-size:16px; }
+  .week-day-dot.partial { background:#1a1500; border:1px solid #333000; color:var(--accent); }
+  .week-day-dot.empty { background:#1a0000; border:1px solid #2a0000; color:#ffffff; font-size:9px; }
+  .week-day-dot.today-ring { border:2px solid var(--accent) !important; }
+  .week-day-dot.full.today-ring { border:2px solid var(--green) !important; }
+  .week-day-dot.full-photo {
+    position:relative;
+    background-size:cover;
+    background-position:center;
+    background-repeat:no-repeat;
+    border:1px solid var(--green);
+    color:#ffffff;
+    overflow:hidden;
+  }
+  .week-day-thumb {
+    width:100%;
+    height:100%;
+    object-fit:cover;
+    display:block;
+    border-radius:4px;
+    transition:transform 0.2s ease;
+    transform-origin:center;
+  }
+  .week-day-dot.full-photo.thumb-zoom {
+    z-index:3;
+  }
+  .week-day-dot.full-photo.thumb-zoom .week-day-thumb {
+    transform:scale(1.16);
+  }
+  .week-day-dot.future { background:#0d0d0d; color:#585858; }
+  .week-summary { font-family:'DM Mono',monospace; font-size:10px; color:#989898; margin-top:12px; letter-spacing:1px; text-align:center; }
+  .week-summary b { color:var(--accent); font-weight:normal; }
+
+  /* WEEK PHOTO CHOICE MODAL */
+  #weekPhotoChoiceModal {
+    position:fixed;
+    inset:0;
+    z-index:11950;
+    background:rgba(0,0,0,0.7);
+    display:none;
+    align-items:center;
+    justify-content:center;
+    padding:16px;
+  }
+  .wpc-card {
+    width:min(360px,100%);
+    background:#0f0f0f;
+    border:1px solid #2a2a2a;
+    border-radius:10px;
+    padding:14px;
+  }
+  .wpc-title {
+    font-family:'DM Mono',monospace;
+    font-size:11px;
+    letter-spacing:1px;
+    color:#d0d0d0;
+    margin-bottom:6px;
+    text-align:center;
+  }
+  .wpc-sub {
+    font-family:'DM Mono',monospace;
+    font-size:9px;
+    letter-spacing:1px;
+    color:#8f8f8f;
+    text-align:center;
+    margin-bottom:12px;
+    text-transform:uppercase;
+  }
+  .wpc-actions {
+    display:flex;
+    gap:8px;
+  }
+  .wpc-btn {
+    flex:1;
+    padding:10px;
+    border-radius:6px;
+    border:1px solid #2a2a2a;
+    background:#121212;
+    color:#d0d0d0;
+    font-family:'DM Mono',monospace;
+    font-size:10px;
+    letter-spacing:1px;
+    text-transform:uppercase;
+    cursor:pointer;
+  }
+  .wpc-btn.add {
+    background:var(--green);
+    color:var(--on-light);
+    border-color:var(--green);
+  }
+
+  /* WEEK PHOTO CAMERA MODAL */
+  #weekPhotoModal {
+    position:fixed;
+    inset:0;
+    z-index:12000;
+    background:rgba(0,0,0,0.88);
+    display:none;
+    align-items:center;
+    justify-content:center;
+    padding:16px;
+  }
+  .wpm-card {
+    width:min(420px,100%);
+    background:#0f0f0f;
+    border:1px solid #2a2a2a;
+    border-radius:10px;
+    padding:12px;
+  }
+  .wpm-title {
+    font-family:'DM Mono',monospace;
+    font-size:10px;
+    letter-spacing:2px;
+    color:#b0b0b0;
+    text-transform:uppercase;
+    margin-bottom:10px;
+    text-align:center;
+  }
+  #weekPhotoVideo {
+    width:100%;
+    aspect-ratio:3/4;
+    object-fit:cover;
+    border-radius:8px;
+    background:#000;
+    border:1px solid #222;
+  }
+  #weekPhotoPreview {
+    display:none;
+    width:100%;
+    aspect-ratio:3/4;
+    object-fit:cover;
+    border-radius:8px;
+    background:#000;
+    border:1px solid #222;
+  }
+  .wpm-row {
+    margin-top:8px;
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:8px;
+  }
+  .wpm-watermark { font-family:'DM Mono',monospace; font-size:9px; color:#9f9f9f; display:flex; align-items:center; gap:6px; }
+  .wpm-actions {
+    display:flex;
+    gap:10px;
+    margin-top:10px;
+  }
+  .wpm-btn {
+    flex:1;
+    padding:10px;
+    border-radius:6px;
+    border:1px solid #2a2a2a;
+    background:#111;
+    color:#c8c8c8;
+    font-family:'DM Mono',monospace;
+    font-size:11px;
+    letter-spacing:1px;
+    text-transform:uppercase;
+    cursor:pointer;
+  }
+  .wpm-btn.capture {
+    background:var(--green);
+    color:var(--on-light);
+    border-color:var(--green);
+  }
+
+  /* STREAK PHOTO VIEWER */
+  #streakPhotoViewerModal {
+    position:fixed;
+    inset:0;
+    z-index:12100;
+    background:rgba(0,0,0,0.9);
+    display:none;
+    align-items:center;
+    justify-content:center;
+    padding:16px;
+  }
+  .spv-card {
+    width:min(960px,100%);
+    max-height:92vh;
+    background:#0f0f0f;
+    border:1px solid #2a2a2a;
+    border-radius:10px;
+    padding:12px;
+    display:flex;
+    flex-direction:column;
+    gap:10px;
+  }
+  .spv-top {
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:8px;
+  }
+  .spv-title {
+    font-family:'DM Mono',monospace;
+    font-size:10px;
+    letter-spacing:2px;
+    color:#b9b9b9;
+    text-transform:uppercase;
+  }
+  .spv-close {
+    background:#111;
+    border:1px solid #2a2a2a;
+    color:#c8c8c8;
+    border-radius:6px;
+    padding:8px 10px;
+    font-family:'DM Mono',monospace;
+    font-size:10px;
+    letter-spacing:1px;
+    text-transform:uppercase;
+    cursor:pointer;
+  }
+  #streakPhotoViewerImg {
+    width:100%;
+    max-height:72vh;
+    object-fit:contain;
+    border-radius:8px;
+    border:1px solid #222;
+    background:#000;
+  }
+  .spv-meta {
+    font-family:'DM Mono',monospace;
+    font-size:10px;
+    color:#a5a5a5;
+    letter-spacing:1px;
+    text-align:center;
+  }
+  .spv-actions {
+    display:grid;
+    grid-template-columns:repeat(5,minmax(0,1fr));
+    gap:8px;
+  }
+  .spv-btn {
+    padding:10px;
+    border-radius:6px;
+    border:1px solid #2a2a2a;
+    background:#121212;
+    color:#d0d0d0;
+    font-family:'DM Mono',monospace;
+    font-size:10px;
+    letter-spacing:1px;
+    text-transform:uppercase;
+    cursor:pointer;
+  }
+  .spv-btn.primary {
+    background:var(--green);
+    color:var(--on-light);
+    border-color:var(--green);
+  }
+  .spv-btn.warn {
+    background:#230808;
+    border-color:#4a1515;
+    color:#ff8f8f;
+  }
+  .spv-btn:disabled {
+    opacity:0.45;
+    cursor:not-allowed;
+  }
+  .dot.photo {
+    background-size:cover;
+    background-position:center;
+    background-repeat:no-repeat;
+    color:transparent;
+    border:1px solid #35653f;
+    cursor:zoom-in;
+  }
+  .tile-streak .dot.photo {
+    width:33px;
+    height:33px;
+  }
+
+  @media (max-width: 640px) {
+    .spv-card {
+      width:100%;
+      max-height:94vh;
+      padding:10px;
+    }
+    #streakPhotoViewerImg {
+      max-height:68vh;
+    }
+    .spv-actions {
+      grid-template-columns:repeat(2,minmax(0,1fr));
+    }
+  }
+
