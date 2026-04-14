@@ -1,3 +1,144 @@
+// --- Live mm:ss timer for active task ---
+let activeTaskTimer = null;
+let pausedTaskId = null;
+let pausedElapsed = 0;
+
+function formatMMSS(secs) {
+  const m = Math.floor(secs / 60);
+  const s = secs % 60;
+  return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+}
+
+function startActiveTaskTimer(taskId, startedAt, pausedAt) {
+  clearActiveTaskTimer();
+  function update() {
+    const el = document.querySelector(`.task-timer[data-id='${taskId}']`);
+    if (!el) return;
+    let elapsed;
+    if (pausedTaskId === taskId && pausedElapsed) {
+      elapsed = pausedElapsed;
+    } else {
+      elapsed = Math.floor((Date.now() - new Date(startedAt)) / 1000);
+    }
+    el.textContent = formatMMSS(elapsed);
+  }
+  update();
+  activeTaskTimer = setInterval(update, 1000);
+}
+function clearActiveTaskTimer() {
+  if (activeTaskTimer) clearInterval(activeTaskTimer);
+  activeTaskTimer = null;
+}
+
+// Patch renderTasks to add timer and pause/resume
+const origRenderTasks = renderTasks;
+renderTasks = function() {
+  clearActiveTaskTimer();
+  const ts=loadState()[getToday()]||{};
+  const customWrap=document.getElementById('customTaskList');
+  if(!customWrap)return;
+  let custom=getTodayCustomTasks();
+  const sortMode=getTaskSortMode();
+  if(sortMode==='incomplete'){
+    custom=custom
+      .map((t,idx)=>({t,idx,done:isTaskCompletedEntry(ts[t.id])}))
+      .sort((a,b)=>{
+        if(a.done!==b.done)return a.done?1:-1;
+        return a.idx-b.idx;
+      })
+      .map(x=>x.t);
+  }
+  customWrap.innerHTML='';
+  if(!custom.length){
+    customWrap.innerHTML='<div class="task-empty">Add your first task above.</div>';
+    return;
+  }
+  let firstPendingId='';
+  custom.forEach(task=>{
+    const taskEntry=ts[task.id];
+    const done=isTaskCompletedEntry(taskEntry);
+    const inProgress=isTaskInProgressEntry(taskEntry);
+    const est=getTaskEstimatedMinutes(taskEntry);
+    const actual=done?(taskEntry?.actualMinutes??getTaskActualMinutes(taskEntry)):null;
+    const elapsedInProgress=inProgress&&taskEntry?.startedAt?Math.max(0,Math.round((Date.now()-new Date(taskEntry.startedAt))/60000)):null;
+    const overrun=done?((taskEntry?.overrunByMinutes||0)>0):(inProgress&&Number.isFinite(est)&&Number.isFinite(elapsedInProgress)&&elapsedInProgress>est);
+    if(!done&&firstPendingId==='')firstPendingId=String(task.id);
+    const row=document.createElement('div');
+    row.className='task custom-task-item'+(done?' done':'')+(String(task.id)===firstPendingId?' task-next':'');
+    row.setAttribute('data-id',task.id);
+    const safeTitle=(task.text||'').replaceAll('<','&lt;').replaceAll('>','&gt;');
+    const isDaily=!!task.recurringTemplateId;
+    const tagHtml = isDaily ? '<div class="task-tag tag-daily">Daily</div>' : '';
+    let metrics=[];
+    if(Number.isFinite(est))metrics.push(`<span class=\"task-metric\">Est ${formatMins(est)}</span>`);
+    if(done&&Number.isFinite(actual))metrics.push(`<span class=\"task-metric\">Actual ${formatMins(actual)}</span>`);
+    // --- Live timer for in-progress task ---
+    let timerHtml = '';
+    if(inProgress && taskEntry?.startedAt){
+      timerHtml = `<span class=\"task-metric\"><span class=\"task-timer\" data-id=\"${task.id}\">00:00</span> <button class=\"timer-btn\" data-id=\"${task.id}\">${pausedTaskId===task.id?'Resume':'Pause'}</button></span>`;
+      setTimeout(()=>startActiveTaskTimer(task.id, taskEntry.startedAt), 0);
+    } else if (taskEntry?.pausedAt) {
+      timerHtml = `<span class=\"task-metric\"><span class=\"task-timer\" data-id=\"${task.id}\">${formatMMSS(pausedElapsed)}</span> <button class=\"timer-btn\" data-id=\"${task.id}\">Resume</button></span>`;
+    }
+    if(timerHtml) metrics.push(timerHtml);
+    if(inProgress&&Number.isFinite(est)&&taskEntry?.startedAt){
+      const elapsed = Math.floor((Date.now()-new Date(taskEntry.startedAt))/60000);
+      const remaining = est-elapsed;
+      if(remaining>=0)metrics.push(`<span class=\"task-metric remaining\">Left ${formatMins(remaining)}</span>`);
+      else metrics.push(`<span class=\"task-metric overrun\">Over ${formatMins(Math.abs(remaining))}</span>`);
+    }
+    if(overrun)metrics.push('<span class=\"task-metric overrun\">Overrun</span>');
+    row.innerHTML=`
+      <div class=\"custom-task-meta\">
+        <div class=\"checkbox\">${done?'✓':''}</div>
+        <div class=\"task-body\">
+          <div class=\"task-header\"><div class=\"task-title\">${safeTitle}</div>${tagHtml}</div>
+          <div class=\"task-desc\">${done?'Completed.':(inProgress?'In progress.':'Ready to start.')}</div>
+          ${metrics.length?`<div class=\"task-metrics\">${metrics.join('')}</div>`:''}
+        </div>
+      </div>
+      ${done ? '<button type=\"button\" class=\"custom-task-select\" disabled>Completed</button>' : (inProgress ? `<button type=\"button\" class=\"custom-task-select\" onclick=\"completeTask(\'${task.id}\')\">Complete</button>` : `<button type=\"button\" class=\"custom-task-select\" onclick=\"openEstimateModal(\'${task.id}\')\">Start Task</button>`)}
+      <button type=\"button\" class=\"custom-task-delete\" onclick=\"deleteCustomTask(\'${task.id}\')\">Delete</button>
+    `;
+    customWrap.appendChild(row);
+  });
+  // Attach pause/resume listeners
+  setTimeout(()=>{
+    document.querySelectorAll('.timer-btn').forEach(btn=>{
+      btn.onclick=(e)=>{
+        const tid=btn.getAttribute('data-id');
+        handlePauseResume(tid);
+      };
+    });
+  }, 0);
+};
+
+function handlePauseResume(taskId){
+  const ts=loadState()[getToday()]||{};
+  const task=ts[taskId];
+  if(!task)return;
+  if(pausedTaskId===taskId){
+    // Resume
+    if(task.pausedAt && task.startedAt){
+      const pausedFor = Date.now() - new Date(task.pausedAt);
+      task.startedAt = new Date(new Date(task.startedAt).getTime() + pausedFor).toISOString();
+      delete task.pausedAt;
+      pausedTaskId = null;
+      pausedElapsed = 0;
+      saveState(loadState());
+      renderTasks();
+    }
+  } else {
+    // Pause
+    if(task.startedAt){
+      task.pausedAt = new Date().toISOString();
+      pausedTaskId = taskId;
+      pausedElapsed = Math.floor((new Date(task.pausedAt)-new Date(task.startedAt))/1000);
+      saveState(loadState());
+      renderTasks();
+    }
+  }
+}
 const TASKS_KEY='cse_tasks', STREAK_KEY='cse_streak', LAST_DATE_KEY='cse_last_date';
   const STREAK_LOG_KEY='cse_streak_log', SNOOZE_KEY='cse_snooze_until';
   const SUBJ_KEY='cse_subjects', REFLECT_KEY='cse_reflections', POMO_KEY='cse_pomo';
@@ -1367,7 +1508,7 @@ const TASKS_KEY='cse_tasks', STREAK_KEY='cse_streak', LAST_DATE_KEY='cse_last_da
     const wrap=document.getElementById('missionNoticeActions');
     if(!wrap)return;
     wrap.innerHTML='';
-    if(!actions||!actions.length){
+    if (!actions || !actions.length) {
       wrap.style.display='none';
       return;
     }
