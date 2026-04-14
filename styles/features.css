@@ -1,3 +1,43 @@
+/* Minimal task timer styling */
+.task-metric .task-timer {
+  font-family: 'DM Mono', monospace;
+  font-size: 13px;
+  font-weight: 500;
+  color: #e0e0e0;
+  background: rgba(30,30,30,0.85);
+  border-radius: 999px;
+  padding: 2px 10px 2px 8px;
+  margin-right: 4px;
+  border: none;
+  letter-spacing: 0.5px;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.10);
+  display: inline-block;
+  min-width: 38px;
+  text-align: right;
+}
+.timer-btn {
+  font-family: 'DM Mono', monospace;
+  font-size: 11px;
+  font-weight: 500;
+  background: #181818;
+  color: #e0e0e0;
+  border: 1.5px solid #333;
+  border-radius: 999px;
+  padding: 2px 14px;
+  margin-left: 2px;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+  outline: none;
+}
+.timer-btn:hover, .timer-btn:focus {
+  background: #232323;
+  border-color: #f0e040;
+  color: #f0e040;
+}
+.task-metric .task-timer {
+  font-variant-numeric: tabular-nums;
+}
 .tag-daily {
     display:inline-block;
     background:linear-gradient(90deg,#2e3a1a 60%,#2e3a1a 100%);
