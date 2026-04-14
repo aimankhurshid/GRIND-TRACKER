@@ -11,6 +11,7 @@
 <meta name="apple-mobile-web-app-title" content="Daily Mission">
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Mono:wght@400;500&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="styles/main.css">
+<link rel="manifest" href="manifest.json">
 </head>
 <body>
 
@@ -111,14 +112,82 @@
 <div id="morningModeModal">
   <div class="mm-card">
     <div class="mm-title">Morning Mode</div>
-    <div class="mm-sub">Pick your first wins and start focus now</div>
+    <div class="mm-sub">Choose 1 task, set estimate, start focus</div>
+    <div class="mm-field">
+      <label for="morningPickTask">Pick first task</label>
+      <select id="morningPickTask"></select>
+    </div>
+    <div class="mm-field">
+      <label for="morningPickMinutes">How long will this take? (minutes)</label>
+      <input id="morningPickMinutes" type="number" min="10" max="240" step="5" value="45">
+    </div>
     <div class="mm-list" id="morningTaskList"></div>
+    <div class="mm-status" id="morningPickStatus">Select task + estimate to make the ladder useful.</div>
     <div class="mm-actions">
-      <button type="button" class="tiny-btn primary" id="morningStartFocusBtn">Start Focus Session</button>
+      <button type="button" class="tiny-btn primary" id="morningStartFocusBtn">Choose & Start</button>
       <button type="button" class="tiny-btn" id="morningCloseBtn">Close</button>
     </div>
   </div>
 </div>
+
+<div id="nightPrepModal">
+  <div class="np-card">
+    <div class="np-title">Night Prep (2 min)</div>
+    <div class="np-sub">Set tomorrow's first move now</div>
+    <div class="np-field">
+      <label for="npFrog">Tomorrow's first task</label>
+      <input id="npFrog" type="text" placeholder="e.g. 2 LeetCode mediums">
+    </div>
+    <div class="np-row">
+      <div class="np-field">
+        <label for="npStartTime">Start time</label>
+        <input id="npStartTime" type="time" value="08:00">
+      </div>
+      <div class="np-field">
+        <label for="npDuration">Minutes</label>
+        <input id="npDuration" type="number" min="10" max="120" step="5" value="25">
+      </div>
+    </div>
+    <div class="np-field">
+      <label for="npFirstStep">First tiny step</label>
+      <input id="npFirstStep" type="text" placeholder="e.g. open sheet + solve Q1">
+    </div>
+    <div class="np-actions">
+      <button type="button" class="tiny-btn" id="npCancelBtn">Cancel</button>
+      <button type="button" class="tiny-btn primary" id="npSaveBtn">Save Night Prep</button>
+    </div>
+  </div>
+</div>
+
+<div id="estimateModal" class="em-overlay">
+  <div class="em-card" role="dialog" aria-modal="true" aria-labelledby="estimateTitle">
+    <div class="em-title" id="estimateTitle">Set Time Estimate</div>
+    <div class="em-divider"></div>
+    <div class="em-sub" id="estimateTaskLabel">Task</div>
+    <div class="em-field">
+      <label id="estimateMinutesPrompt" for="estimateMinutesInput">Since you're going to do this work, how much time will it take?</label>
+      <input id="estimateMinutesInput" type="number" min="10" max="240" step="5" value="45">
+    </div>
+    <div class="em-actions">
+      <button type="button" class="tiny-btn" id="estimateCancelBtn">Cancel</button>
+      <button type="button" class="tiny-btn primary" id="estimateSaveBtn">Save & Start</button>
+    </div>
+  </div>
+</div>
+
+<div id="taskCompletionModal" class="em-overlay">
+  <div class="em-card tc-card" role="dialog" aria-modal="true" aria-labelledby="taskCompletionTitle">
+    <div class="em-title" id="taskCompletionTitle">Task Completed</div>
+    <div class="em-divider"></div>
+    <div class="em-sub" id="taskCompletionTaskLabel">Task</div>
+    <div class="tc-stats" id="taskCompletionStats"></div>
+    <div class="tc-suggestion" id="taskCompletionSuggestion"></div>
+    <div class="em-actions">
+      <button type="button" class="tiny-btn primary" id="taskCompletionCloseBtn">Got it</button>
+    </div>
+  </div>
+</div>
+
 
 <!-- MAIN DASHBOARD -->
 <div id="mainContent">
@@ -143,48 +212,66 @@
     </div>
   </div>
 
+  <!-- NEXT ACTION WIDGET -->
+  <div class="tile tile-next">
+    <div class="section-title">🚀 What To Do Next</div>
+    <div class="next-action-card" id="nextActionCard">
+      <div class="next-action-text" id="nextActionText">Loading your next step...</div>
+      <button class="next-action-btn" id="nextActionBtn" onclick="doNextAction()">Do This Now</button>
+        <div class="next-action-lock">
+          <label><input type="checkbox" id="focusLockToggle"> Focus Lock: Hide all except this step</label>
+        </div>
+    </div>
+  </div>
+
+  <div class="tile tile-engine">
+    <div class="section-title">🪜 Daily Mission Ladder</div>
+    <div class="engine-card">
+      <div class="engine-top">
+        <div>
+          <div class="engine-kicker">Time Left Today</div>
+          <div class="engine-score" id="missionTimeLeft">00:00</div>
+        </div>
+        <div class="engine-status" id="missionModeLabel">normal</div>
+      </div>
+      <div class="engine-bar-wrap"><div class="engine-bar" id="missionProgressBar" style="width:0%"></div></div>
+      <div class="engine-directive" id="dailyDirective">Follow the next 3 steps in order.</div>
+      <div class="engine-notice" id="missionNotice" style="display:none"></div>
+      <div class="engine-notice-actions" id="missionNoticeActions" style="display:none"></div>
+      <div class="engine-actions" id="dailyActionList"></div>
+      <div class="engine-btns">
+        <button class="tiny-btn primary" onclick="startMissionSprint()">Start 25m Sprint</button>
+        <button class="tiny-btn" onclick="openNightPrep()">Night Prep</button>
+      </div>
+      <div class="engine-weekly" id="missionWeeklyReview">Weekly execution review loading...</div>
+    </div>
+  </div>
+
   <!-- TASKS -->
   <div class="tile tile-tasks">
     <div class="section-title">📋 Today's Tasks — tap to complete</div>
-    <div id="taskList">
-    <div class="task" data-id="0" onclick="toggleTask(0)">
-      <div class="checkbox" id="cb0"></div>
-      <div class="task-body">
-        <div class="task-header"><div class="task-title">2 LeetCode Problems</div><div class="task-tag tag-dsa">DSA</div></div>
-        <div class="task-desc">Easy or Medium. Before YouTube. Non-negotiable.</div>
-      </div>
+    <div class="task-plan-first">See the plan first. Then add your own task below.</div>
+    <div class="task-add-row">
+      <select id="taskPlanDate" class="task-plan-date">
+        <option value="today">Today</option>
+        <option value="tomorrow">Tomorrow</option>
+      </select>
+      <input id="customTaskInput" class="task-add-input" type="text" placeholder="Add what you have to do today..." maxlength="120" onkeydown="if(event.key==='Enter'){addCustomTask();}">
+      <button class="task-add-btn" type="button" onclick="addCustomTask()">Add</button>
     </div>
-    <div class="task" data-id="1" onclick="toggleTask(1)">
-      <div class="checkbox" id="cb1"></div>
-      <div class="task-body">
-        <div class="task-header"><div class="task-title">45 min TUF+ Study</div><div class="task-tag tag-core">Core</div></div>
-        <div class="task-desc">DBMS now. OS and CN next. Watch → write 5 lines notes.</div>
-      </div>
+    <div class="task-add-options">
+      <label class="task-repeat-option"><input type="checkbox" id="customTaskRepeatDaily"> Repeat daily</label>
+      <label class="task-sort-label" for="taskSortMode">Sort</label>
+      <select id="taskSortMode" class="task-sort-select">
+        <option value="added">Added order</option>
+        <option value="incomplete">Incomplete first</option>
+      </select>
     </div>
-    <div class="task" data-id="2" onclick="toggleTask(2)">
-      <div class="checkbox" id="cb2"></div>
-      <div class="task-body">
-        <div class="task-header"><div class="task-title">Review Yesterday's Notes</div><div class="task-tag tag-core">Core</div></div>
-        <div class="task-desc">5 minutes. This is literally the only way you stop forgetting.</div>
-      </div>
-    </div>
-    <div class="task" data-id="3" onclick="toggleTask(3)">
-      <div class="checkbox" id="cb3"></div>
-      <div class="task-body">
-        <div class="task-header"><div class="task-title">10 min Project Thinking</div><div class="task-tag tag-project">Project</div></div>
-        <div class="task-desc">Sketch, search, or write one idea. You need something to build post-exams.</div>
-      </div>
-    </div>
-    <div class="task" data-id="4" onclick="toggleTask(4)">
-      <div class="checkbox" id="cb4"></div>
-      <div class="task-body">
-        <div class="task-header"><div class="task-title">Study for Sem Exam</div><div class="task-tag tag-core">Exams</div></div>
-        <div class="task-desc">Bad CGPA closes doors too. Don't let it slip.</div>
-      </div>
-    </div>
-    </div>
+    <div id="taskList"></div>
+    <div id="customTaskList" class="custom-task-list"></div>
+    <div id="taskAddStatus" class="task-add-status" aria-live="polite"></div>
     <div class="progress-bar-wrap"><div class="progress-bar" id="progressBar" style="width:0%"></div></div>
-    <div class="progress-label" id="progressLabel">0 / 5 done today</div>
+    <div class="progress-label" id="progressLabel">0 / 0 done today</div>
   </div>
 
   <!-- WEEK VIEW -->
@@ -230,6 +317,7 @@
     <textarea class="reflection-input" id="ref2" placeholder="Be honest. No one sees this." rows="2"></textarea>
     <div class="reflection-q">What will you do first thing tomorrow?</div>
     <textarea class="reflection-input" id="ref3" placeholder="One specific task, not a vague goal." rows="2"></textarea>
+      <div class="reflection-coach" id="reflectionCoachText"></div>
       <button class="reflection-save" onclick="saveReflection()">SAVE TODAY'S REFLECTION</button>
       <div class="reflection-saved" id="reflectionSaved">✓ Saved. Same time tomorrow.</div>
       <div class="reflection-history" id="reflectionHistory">
@@ -248,6 +336,8 @@
         <button class="streak-btn" id="streakBtn" onclick="markToday()">✓ Done Today</button>
       </div>
       <div class="streak-dots" id="streakDots"></div>
+      <button class="tiny-btn" type="button" id="toggleStreakDetailsBtn">View Details</button>
+      <div id="streakDetailsWrap" style="display:none">
       <div class="streak-metrics">
         <div class="metric"><div class="metric-k">Month %</div><div class="metric-v" id="metricMonthPct">0%</div></div>
         <div class="metric"><div class="metric-k">Longest</div><div class="metric-v" id="metricLongest">0</div></div>
@@ -257,6 +347,7 @@
         <div class="month-head" id="monthHeatmapHead">This Month Heatmap</div>
         <div class="month-grid" id="monthHeatmapGrid"></div>
         <div class="mtrend" id="monthTrendText"></div>
+      </div>
       </div>
     </div>
   </div>
@@ -274,6 +365,8 @@
       <div class="notif-text">🔔 Allow notifications so this reminds you on your lock screen.</div>
       <button class="notif-btn" onclick="requestNotifPermission()">Allow Reminders</button>
     </div>
+    <button class="tiny-btn" type="button" id="toggleSettingsBtn">Settings & Data</button>
+    <div id="settingsPanel" style="display:none">
     <div class="backup-reminder" id="backupReminder">
       <div class="backup-reminder-text">It has been a week since your last backup. Export now to protect your progress.</div>
       <div class="backup-reminder-btns">
@@ -319,6 +412,7 @@
     </div>
     <input id="backupFileInput" type="file" accept="application/json" style="display:none">
     <button class="reset-btn" onclick="resetDay()">↺ Reset Today's Tasks</button>
+    </div>
   </div>
 </div>
 

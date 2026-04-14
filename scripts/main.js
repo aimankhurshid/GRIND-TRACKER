@@ -1,4 +1,4 @@
-  const TASKS_KEY='cse_tasks', STREAK_KEY='cse_streak', LAST_DATE_KEY='cse_last_date';
+const TASKS_KEY='cse_tasks', STREAK_KEY='cse_streak', LAST_DATE_KEY='cse_last_date';
   const STREAK_LOG_KEY='cse_streak_log', SNOOZE_KEY='cse_snooze_until';
   const SUBJ_KEY='cse_subjects', REFLECT_KEY='cse_reflections', POMO_KEY='cse_pomo';
   const POMO_LOG_KEY='cse_pomo_log';
@@ -10,8 +10,18 @@
   const BACKUP_REMINDER_DISMISS_KEY='cse_backup_reminder_dismiss';
   const BACKUP_REMINDER_DAYS_KEY='cse_backup_reminder_days';
   const MORNING_MODE_LAST_OPEN_KEY='cse_morning_mode_last_open';
+  const NIGHT_PREP_KEY='cse_night_prep';
+  const LAST_DRIFT_ALERT_KEY='cse_last_drift_alert';
+  const CUSTOM_TASKS_KEY='cse_custom_tasks';
+  const CUSTOM_TASK_TEMPLATES_KEY='cse_custom_task_templates';
+  const TASK_SORT_KEY='cse_task_sort_mode';
+  const TODAY_FOCUS_PLAN_KEY='cse_today_focus_plan';
+  const TASK_COMPLETION_LOG_KEY='cse_task_completion_log';
   const APP_DB_NAME='daily_mission_db', APP_DB_VERSION=1, APP_DB_STORE='kv';
   const DEV_BYPASS_KEY='cse_dev_bypass_slap';
+  const DAILY_TASK_CAP=5;
+  const BIG_TASK_SPLIT_MINUTES=90;
+  const STUCK_TASK_MINUTES=180;
   let pendingWeekPhotoDate=null;
   let pendingWeekChoiceDate=null;
   let reopenStreakViewerDate=null;
@@ -89,8 +99,57 @@
     "The placement interview is coming whether you prepare or not.\nYour move.",
     "Someone from your college is grinding LeetCode right now.\nAre you?"
   ];
+  const TASK_LABELS=[
+    '2 LeetCode Problems',
+    '45 min TUF+ Study',
+    'Review Yesterday\'s Notes',
+    '10 min Project Thinking',
+    'Study for Sem Exam'
+  ];
 
   function getToday() { return new Date().toISOString().split('T')[0]; }
+  function isTaskCompletedEntry(entry){
+    if(entry===true)return true;
+    if(entry&&typeof entry==='object')return entry.status==='completed';
+    return false;
+  }
+  function isTaskInProgressEntry(entry){
+    return Boolean(entry&&typeof entry==='object'&&entry.status==='in_progress');
+  }
+  function getTaskStateEntry(dayState,taskId){
+    const entry=(dayState||{})[taskId];
+    if(entry===true)return {status:'completed'};
+    if(entry&&typeof entry==='object')return entry;
+    return null;
+  }
+  function getTaskEstimatedMinutes(entry){
+    if(!entry||typeof entry!=='object')return null;
+    const n=parseInt(entry.estimatedMinutes,10);
+    return Number.isFinite(n)&&n>0?n:null;
+  }
+  function getTaskActualMinutes(entry){
+    if(!entry||typeof entry!=='object'||!entry.startedAt||!entry.completedAt)return null;
+    const diff=Math.round((new Date(entry.completedAt)-new Date(entry.startedAt))/60000);
+    return Number.isFinite(diff)&&diff>=0?diff:null;
+  }
+  function addDaysToDateStr(dateStr,days){
+    const d=new Date(`${dateStr}T00:00:00`);
+    d.setDate(d.getDate()+days);
+    return d.toISOString().split('T')[0];
+  }
+  function formatMins(mins){
+    const n=parseInt(mins,10);
+    return Number.isFinite(n)&&n>=0?`${n}m`:'-';
+  }
+  function formatClockTime(iso){
+    if(!iso)return '-';
+    const d=new Date(iso);
+    if(Number.isNaN(d.getTime()))return '-';
+    return d.toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'});
+  }
+  function countCompletedTasks(dayState){
+    return Object.values(dayState||{}).filter(isTaskCompletedEntry).length;
+  }
   function isPastDate(dateStr){ return dateStr<getToday(); }
   function isDateLocked(dateStr){ return dateStr<getToday() || Boolean(loadDailySnapshots()[dateStr]); }
   function loadDailySnapshots(){
@@ -171,7 +230,7 @@
     const state=loadState();
     const log=getStreakLog();
     const dayTasks=state[dateStr]||{};
-    const taskDoneCount=Object.values(dayTasks).filter(Boolean).length;
+    const taskDoneCount=countCompletedTasks(dayTasks);
     const dayPomo=loadPomoDailyLog()[dateStr]||{focusMinutes:0,breakMinutes:0,sessions:0};
     const photos=loadWeekPhotos();
     const streakMarked=log.includes(dateStr);
@@ -311,8 +370,10 @@
     for(let i=0;i<7;i++){
       const d=new Date(start);d.setDate(start.getDate()+i);
       const ds=d.toISOString().split('T')[0];
-      const done=Object.values(state[ds]||{}).filter(Boolean).length;
-      if(done===5||log.includes(ds))full++;
+      const done=countCompletedTasks(state[ds]||{});
+      const totalForDay=getCustomTasksForDate(ds).length;
+      const isFull=totalForDay>0&&done>=totalForDay;
+      if(isFull||log.includes(ds))full++;
       else if(done>0)partial++;
       if(done>bestScore){bestScore=done;bestDate=ds;}
       const dayLog=pomoLog[ds]||{};
@@ -358,23 +419,37 @@
   function openMorningMode(){
     const modal=document.getElementById('morningModeModal');
     const list=document.getElementById('morningTaskList');
-    if(!modal||!list)return;
+    const picker=document.getElementById('morningPickTask');
+    const minsInput=document.getElementById('morningPickMinutes');
+    const status=document.getElementById('morningPickStatus');
+    if(!modal||!list||!picker||!minsInput)return;
     const tasks=loadState()[getToday()]||{};
-    const labels=[
-      '2 LeetCode Problems',
-      '45 min TUF+ Study',
-      'Review Yesterday\'s Notes',
-      '10 min Project Thinking',
-      'Study for Sem Exam'
-    ];
-    const next=labels.filter((_,idx)=>!tasks[idx]).slice(0,3);
+    const pendingCore=TASK_LABELS.map((label,idx)=>({id:idx,label})).filter(t=>!tasks[t.id]);
+    const pendingCustom=getPendingCustomTasks(tasks).map(t=>({id:t.id,label:t.text}));
+    const pending=[...pendingCustom,...pendingCore];
     list.innerHTML='';
-    (next.length?next:['All key tasks done today']).forEach(t=>{
+    (pending.slice(0,3).map(t=>t.label).length?pending.slice(0,3).map(t=>t.label):['All key tasks done today']).forEach(t=>{
       const el=document.createElement('div');
       el.className='mm-item';
       el.textContent=t;
       list.appendChild(el);
     });
+    picker.innerHTML='';
+    if(!pending.length){
+      const op=document.createElement('option');
+      op.value='';
+      op.textContent='No pending tasks';
+      picker.appendChild(op);
+      if(status)status.textContent='No pending tasks right now. Review or close day.';
+    }else{
+      pending.forEach(t=>{
+        const op=document.createElement('option');
+        op.value=String(t.id);
+        op.textContent=t.label;
+        picker.appendChild(op);
+      });
+      if(status)status.textContent='Pick one task and estimate minutes. The mission ladder will track this.';
+    }
     localStorage.setItem(MORNING_MODE_LAST_OPEN_KEY,getToday());
     modal.style.display='flex';
   }
@@ -389,6 +464,56 @@
     const slapHidden=slap&&(slap.style.display==='none');
     const mainVisible=main&&main.style.display==='block';
     if(window.innerWidth<900&&slapHidden&&mainVisible)setTimeout(openMorningMode,350);
+  }
+
+  function loadTodayFocusPlanMap(){
+    try{return JSON.parse(localStorage.getItem(TODAY_FOCUS_PLAN_KEY))||{};}catch{return{};}
+  }
+  function saveTodayFocusPlanMap(v){
+    localStorage.setItem(TODAY_FOCUS_PLAN_KEY,JSON.stringify(v));
+  }
+  function getTodayFocusPlan(){
+    return loadTodayFocusPlanMap()[getToday()]||null;
+  }
+
+  function getTaskLabelById(taskId){
+    if(/^[0-9]+$/.test(String(taskId))){
+      const idx=Number(taskId);
+      return TASK_LABELS[idx]||`Task ${idx+1}`;
+    }
+    const custom=getTodayCustomTasks().find(t=>String(t.id)===String(taskId));
+    return custom?.text||'Selected task';
+  }
+
+  function saveFocusEstimate(taskId,taskLabel,minutes){
+    const today=getToday();
+    const all=loadTodayFocusPlanMap();
+    const est=Math.max(10,Math.min(240,minutes||45));
+    all[today]={taskId:String(taskId),taskLabel,estimatedMinutes:est,createdAt:new Date().toISOString()};
+    saveTodayFocusPlanMap(all);
+    renderDailyActionEngine();
+  }
+
+  function saveMorningFocusSelection(){
+    const picker=document.getElementById('morningPickTask');
+    const minsInput=document.getElementById('morningPickMinutes');
+    const status=document.getElementById('morningPickStatus');
+    if(!picker||!minsInput)return;
+    const taskId=picker.value;
+    const taskLabel=picker.selectedOptions?.[0]?.textContent||'';
+    const est=Math.max(10,Math.min(240,parseInt(minsInput.value||'45',10)||45));
+    if(!taskId){
+      if(status)status.textContent='No task selected.';
+      return;
+    }
+    const label=taskLabel||getTaskLabelById(taskId);
+    saveFocusEstimate(taskId,label,est);
+    if(status)status.textContent=`Selected: ${label} (${est} min).`;
+    setPomoMode('focus');
+    if(pomoState!==POMO_STATES.RUNNING)togglePomo();
+    focusTaskById(/^[0-9]+$/.test(taskId)?Number(taskId):taskId);
+    renderDailyActionEngine();
+    closeMorningMode();
   }
   function getStreakLog() { try{return JSON.parse(localStorage.getItem(STREAK_LOG_KEY))||[];}catch{return[];} }
   function getMissedDays() {
@@ -504,28 +629,560 @@
   // TASKS
   function loadState(){try{return JSON.parse(localStorage.getItem(TASKS_KEY))||{};}catch{return{};}}
   function saveState(s){localStorage.setItem(TASKS_KEY,JSON.stringify(s));}
-  function toggleTask(id){
+  function loadCustomTasks(){
+    try{return JSON.parse(localStorage.getItem(CUSTOM_TASKS_KEY))||{};}catch{return{};}
+  }
+  function saveCustomTasks(v){
+    localStorage.setItem(CUSTOM_TASKS_KEY,JSON.stringify(v));
+  }
+
+  function loadCustomTaskTemplates(){
+    try{return JSON.parse(localStorage.getItem(CUSTOM_TASK_TEMPLATES_KEY))||[];}catch{return[];}
+  }
+  function saveCustomTaskTemplates(v){
+    localStorage.setItem(CUSTOM_TASK_TEMPLATES_KEY,JSON.stringify(v));
+  }
+
+  function syncRecurringTasksForDate(dateStr){
+    if(!dateStr) return;
+    const templates=loadCustomTaskTemplates().filter(t=>t&&t.repeatDaily&&t.text);
+    if(!templates.length)return;
+    const all=loadCustomTasks();
+    const list=all[dateStr]||[];
+    let changed=false;
+    templates.forEach(t=>{
+      if(t.startDate&&dateStr<t.startDate)return;
+      if(list.some(x=>x.recurringTemplateId===t.id))return;
+      list.push({
+        id:`c${Date.now().toString(36)}${Math.random().toString(36).slice(2,6)}`,
+        text:t.text,
+        recurringTemplateId:t.id
+      });
+      changed=true;
+    });
+    if(changed){
+      all[dateStr]=list;
+      saveCustomTasks(all);
+    }
+  }
+
+  function getPendingCustomTasks(stateToday){
+    return getTodayCustomTasks().filter(t => !isTaskCompletedEntry(stateToday[t.id]));
+  }
+
+  function getTaskSortMode(){
+    return localStorage.getItem(TASK_SORT_KEY)||'added';
+  }
+  function setTaskSortMode(val){
+    localStorage.setItem(TASK_SORT_KEY,val);
+  }
+  function setTaskAddStatus(message,type){
+    const el=document.getElementById('taskAddStatus');
+    if(!el)return;
+    el.textContent=message||'';
+    el.className='task-add-status'+(type?` ${type}`:'');
+  }
+  function splitCustomTask(taskId,minutes){
+    const today=getToday();
+    const all=loadCustomTasks();
+    const list=[...(all[today]||[])];
+    const idx=list.findIndex(t=>String(t.id)===String(taskId));
+    if(idx<0)return false;
+    const base=list[idx].text||'Task';
+    const firstId=`c${Date.now().toString(36)}${Math.random().toString(36).slice(2,6)}`;
+    const secondId=`c${Date.now().toString(36)}${Math.random().toString(36).slice(2,6)}`;
+    const half=Math.max(30,Math.round(minutes/2/5)*5);
+    list.splice(idx,1,
+      {id:firstId,text:`${base} (Part 1)`},
+      {id:secondId,text:`${base} (Part 2)`}
+    );
+    all[today]=list;
+    saveCustomTasks(all);
+    const state=loadState();
+    if(!state[today])state[today]={};
+    delete state[today][taskId];
+    state[today][firstId]={status:'not_started',estimatedMinutes:half};
+    state[today][secondId]={status:'not_started',estimatedMinutes:half};
+    saveState(state);
+    setTaskAddStatus('Big task split into two smaller parts for better execution.', 'ok');
+    renderTasks();
+    renderProgress();
+    renderDailyActionEngine();
+    return true;
+  }
+
+
+  // --- Estimate Modal Logic ---
+  let estimatePendingTaskId = null;
+
+  function openEstimateModal(taskId) {
+    estimatePendingTaskId = taskId;
+    const modal = document.getElementById('estimateModal');
+    const label = document.getElementById('estimateTaskLabel');
+    const input = document.getElementById('estimateMinutesInput');
+    const promptLabel = document.getElementById('estimateMinutesPrompt');
+    if (!modal || !label || !input) return;
+    label.textContent = getTaskLabelById(taskId);
+    if (promptLabel) promptLabel.textContent = "Since you're going to do this work, how much time will it take?";
+    const currentState=loadState()[getToday()]||{};
+    const existing=getTaskStateEntry(currentState,taskId);
+    input.value = getTaskEstimatedMinutes(existing) || getTodayFocusPlan()?.estimatedMinutes || 45;
+    modal.style.display = 'flex';
+    setTimeout(() => { input.focus(); }, 100);
+  }
+
+  function closeEstimateModal() {
+    const modal = document.getElementById('estimateModal');
+    if (modal) modal.style.display = 'none';
+    estimatePendingTaskId = null;
+  }
+
+  function confirmEstimateModal() {
+    const input = document.getElementById('estimateMinutesInput');
+    if (!input || !estimatePendingTaskId) return;
+    const minutes = Math.max(10, Math.min(240, parseInt(input.value || '45', 10) || 45));
+    if(minutes>BIG_TASK_SPLIT_MINUTES){
+      const split=window.confirm('This is a big task. Split into 2 smaller tasks for better completion?');
+      if(split){
+        const didSplit=splitCustomTask(estimatePendingTaskId,minutes);
+        if(didSplit){
+          closeEstimateModal();
+          return;
+        }
+      }
+    }
+    const label = getTaskLabelById(estimatePendingTaskId);
+    saveFocusEstimate(estimatePendingTaskId, label, minutes);
+    startTask(estimatePendingTaskId,{estimatedMinutes:minutes});
+    focusTaskById(/^[0-9]+$/.test(String(estimatePendingTaskId)) ? Number(estimatePendingTaskId) : estimatePendingTaskId);
+    closeEstimateModal();
+  }
+
+  // Bind modal buttons on DOMContentLoaded
+  document.addEventListener('DOMContentLoaded', () => {
+    const cancelBtn = document.getElementById('estimateCancelBtn');
+    const saveBtn = document.getElementById('estimateSaveBtn');
+    if (cancelBtn) cancelBtn.onclick = closeEstimateModal;
+    if (saveBtn) saveBtn.onclick = confirmEstimateModal;
+    // Optional: close modal on Escape
+    document.addEventListener('keydown', (e) => {
+      if (document.getElementById('estimateModal')?.style.display === 'flex' && e.key === 'Escape') {
+        closeEstimateModal();
+        return;
+      }
+      if (document.getElementById('taskCompletionModal')?.style.display === 'flex' && e.key === 'Escape') {
+        closeTaskCompletionModal();
+      }
+    });
+  });
+
+  function loadTaskCompletionLog(){
+    try{return JSON.parse(localStorage.getItem(TASK_COMPLETION_LOG_KEY))||{};}catch{return{};}
+  }
+  function saveTaskCompletionLog(v){
+    localStorage.setItem(TASK_COMPLETION_LOG_KEY,JSON.stringify(v));
+  }
+  function saveTaskCompletionSnapshot(summary){
+    const all=loadTaskCompletionLog();
+    const day=getToday();
+    if(!all[day])all[day]=[];
+    all[day].push(summary);
+    if(all[day].length>100)all[day]=all[day].slice(-100);
+    saveTaskCompletionLog(all);
+  }
+  function getCompletionSuggestion(summary){
+    const setTime=summary.estimatedMinutes;
+    const taken=summary.actualMinutes;
+    if(!Number.isFinite(setTime)||setTime<=0){
+      return 'Suggestion: Set an estimate before starting next time so the app can guide you better when you run late.';
+    }
+    const diff=taken-setTime;
+    if(diff<=0)return `Suggestion: Completed ${Math.abs(diff)}m early. Tighten next estimate by around 10% if this pattern continues.`;
+    if(diff<=15)return 'Suggestion: Slight overrun. Continue in one block next time, but add a 10-15m buffer in your estimate.';
+    if(diff<=45)return 'Suggestion: Moderate overrun. Split similar tasks into two smaller parts before starting.';
+    return 'Suggestion: Major overrun. Break this into sessions, complete one now, and schedule a follow-up task immediately.';
+  }
+  function openTaskCompletionModal(summary){
+    const modal=document.getElementById('taskCompletionModal');
+    const label=document.getElementById('taskCompletionTaskLabel');
+    const stats=document.getElementById('taskCompletionStats');
+    const suggestion=document.getElementById('taskCompletionSuggestion');
+    if(!modal||!label||!stats||!suggestion)return;
+    const setTime=Number.isFinite(summary.estimatedMinutes)?formatMins(summary.estimatedMinutes):'Not set';
+    const variance=Number.isFinite(summary.estimatedMinutes)
+      ? (summary.actualMinutes-summary.estimatedMinutes)
+      : null;
+    label.textContent=summary.taskLabel||'Task';
+    stats.innerHTML=''+
+      `<div class="tc-row"><span>Start time</span><strong>${formatClockTime(summary.startedAt)}</strong></div>`+
+      `<div class="tc-row"><span>End time</span><strong>${formatClockTime(summary.completedAt)}</strong></div>`+
+      `<div class="tc-row"><span>Time taken</span><strong>${formatMins(summary.actualMinutes)}</strong></div>`+
+      `<div class="tc-row"><span>Set time</span><strong>${setTime}</strong></div>`+
+      `<div class="tc-row"><span>Difference</span><strong>${variance===null?'No estimate':(variance>0?`+${formatMins(variance)} over`:`${formatMins(Math.abs(variance))} early`)}</strong></div>`;
+    suggestion.textContent=getCompletionSuggestion(summary);
+    modal.style.display='flex';
+  }
+  function closeTaskCompletionModal(){
+    const modal=document.getElementById('taskCompletionModal');
+    if(modal)modal.style.display='none';
+  }
+
+  function getTodayCustomTasks(){
+    syncRecurringTasksForDate(getToday()); return loadCustomTasks()[getToday()] || [];
+  }
+
+  function getCustomTasksForDate(dateStr){
+    syncRecurringTasksForDate(dateStr); return loadCustomTasks()[dateStr] || [];
+  }
+
+  function getSelectedPlanDate(){
+    const picker=document.getElementById('taskPlanDate');
+    if(!picker)return getToday();
+    return picker.value==='tomorrow'?getDateOffset(1):getToday();
+  }
+  function initTaskPlanDatePicker(){
+    const picker=document.getElementById('taskPlanDate');
+    if(!picker)return;
+    const hour=new Date().getHours();
+    picker.value=hour>=20?'tomorrow':'today';
+  }
+
+
+  function startMustDoSprint(){
+    const stateToday = loadState()[getToday()] || {};
+    const mustTask = getPendingCustomTasks(stateToday)[0];
+    if(!mustTask)return;
+    const id=mustTask.id;
+    setPomoMode('focus');
+    if(pomoState!==POMO_STATES.RUNNING)togglePomo();
+    if(id!==null)focusTaskById(id);
+    renderTasks();
+    renderProgress();
+    renderDailyActionEngine();
+  }
+  function closeDayIfReady(){
+    const status=document.getElementById('closeDayStatus');
+    const md=getTodayMissionData();
+    const okTask=md.doneCount>=1;
+    const okSprint=md.sessions>=1;
+    const okReflect=md.hasReflection;
+    if(okTask&&okSprint&&okReflect){
+      markToday();
+      if(status){
+        status.textContent='Day closed. Great execution.';
+        status.classList.add('ok');
+      }
+      return;
+    }
+    const missing=[];
+    if(!okTask)missing.push('1 task');
+    if(!okSprint)missing.push('1 sprint');
+    if(!okReflect)missing.push('reflection');
+    if(status){
+      status.textContent=`Still pending: ${missing.join(', ')}.`;
+      status.classList.remove('ok');
+    }
+  }
+
+  function addCustomTask(){
+    const input=document.getElementById('customTaskInput');
+    const targetDate=getSelectedPlanDate();
+    if(!input||isDateLocked(targetDate))return;
+    const text=(input.value||'').trim();
+    if(!text)return;
+    const repeatDaily=Boolean(document.getElementById('customTaskRepeatDaily')?.checked);
+    const all=loadCustomTasks();
+    let effectiveDate=targetDate;
+    let list=all[effectiveDate]||[];
+    if(list.length>=DAILY_TASK_CAP){
+      while(list.length>=DAILY_TASK_CAP){
+        effectiveDate=addDaysToDateStr(effectiveDate,1);
+        list=all[effectiveDate]||[];
+      }
+      setTaskAddStatus(`Daily cap reached (${DAILY_TASK_CAP}). Task moved to ${effectiveDate}.`,'warn');
+    }else{
+      setTaskAddStatus('','');
+    }
+    if(repeatDaily){
+      // Only add as a recurring template, not as a direct task for today
+      const templates=loadCustomTaskTemplates();
+      templates.push({
+        id:`t${Date.now().toString(36)}${Math.random().toString(36).slice(2,6)}`,
+        text,
+        startDate:effectiveDate,
+        repeatDaily:true
+      });
+      saveCustomTaskTemplates(templates);
+      syncRecurringTasksForDate(getToday());
+      syncRecurringTasksForDate(getDateOffset(1));
+    }else{
+      const id=`c${Date.now().toString(36)}${Math.random().toString(36).slice(2,6)}`;
+      list.push({id,text});
+      all[effectiveDate]=list;
+      saveCustomTasks(all);
+    }
+    input.value='';
+    const repeatEl=document.getElementById('customTaskRepeatDaily');
+    if(repeatEl)repeatEl.checked=false;
+    if(effectiveDate===getToday()){
+      renderTasks();
+      renderProgress();
+      renderDailyActionEngine();
+      focusTaskById(id);
+    }
+    recordAuditEvent('task',`Added custom task for ${effectiveDate}: ${text}`,effectiveDate);
+  }
+
+  function deleteCustomTask(id){
+    if(!id||isDateLocked(getToday()))return;
+    const today=getToday();
+    const all=loadCustomTasks();
+    let list=all[today]||[];
+    const idx=list.findIndex(t=>t.id===id);
+    if(idx<0)return;
+    const task=list[idx];
+    // If it's a recurring (daily) task, show retire/replace popup
+    if(task.recurringTemplateId){
+      openRetireDailyTaskModal(task, idx, list, all, today);
+      return;
+    }
+    // Normal task: just delete
+    list=list.filter(t=>t.id!==id);
+    all[today]=list;
+    saveCustomTasks(all);
+    const state=loadState();
+    if(state[today]&&Object.prototype.hasOwnProperty.call(state[today],id)){
+      delete state[today][id];
+      saveState(state);
+    }
+    renderTasks();
+    renderProgress();
+    renderDailyActionEngine();
+    recordAuditEvent('task','Deleted custom task.',today);
+  }
+  function openRetireDailyTaskModal(task, idx, list, all, today){
+    let modal=document.getElementById('retireDailyTaskModal');
+    if(!modal){
+      modal=document.createElement('div');
+      modal.id='retireDailyTaskModal';
+      modal.className='modal retire-daily-modal';
+      modal.innerHTML=`
+        <div class="modal-content">
+          <div class="modal-title">Retire a Daily Task</div>
+          <div class="modal-message">Would you like to replace this daily focus, or retire it with no replacement?</div>
+          <input type="text" id="newDailyTaskInput" class="modal-input" placeholder="Enter new daily focus..." style="display:none;margin-top:10px;" />
+          <div class="modal-actions">
+            <button id="replaceDailyBtn" class="modal-btn">Replace with New Daily</button>
+            <button id="retireDailyBtn" class="modal-btn">Just Retire</button>
+            <button id="cancelRetireBtn" class="modal-btn cancel">Cancel</button>
+          </div>
+        </div>
+      `;
+      document.body.appendChild(modal);
+    }
+    modal.style.display='flex';
+    const input=modal.querySelector('#newDailyTaskInput');
+    input.value='';
+    input.style.display='none';
+    // Button handlers
+    modal.querySelector('#replaceDailyBtn').onclick=()=>{
+      if(input.style.display==='none'){
+        input.style.display='block';
+        input.focus();
+        return;
+      }
+      const val=input.value.trim();
+      if(val){
+        let templates=loadCustomTaskTemplates();
+        templates=templates.filter(t=>t.id!==task.recurringTemplateId);
+        templates.push({
+          id:`t${Date.now().toString(36)}${Math.random().toString(36).slice(2,6)}`,
+          text:val,
+          startDate:today,
+          repeatDaily:true
+        });
+        saveCustomTaskTemplates(templates);
+        list.splice(idx,1);
+        all[today]=list;
+        saveCustomTasks(all);
+        modal.style.display='none';
+        renderTasks();
+        renderProgress();
+        renderDailyActionEngine();
+        recordAuditEvent('task','Replaced daily task',task.id);
+      } else {
+        input.focus();
+      }
+    };
+    input.onkeydown=(e)=>{
+      if(e.key==='Enter'){
+        const val=input.value.trim();
+        if(val){
+          let templates=loadCustomTaskTemplates();
+          templates=templates.filter(t=>t.id!==task.recurringTemplateId);
+          templates.push({
+            id:`t${Date.now().toString(36)}${Math.random().toString(36).slice(2,6)}`,
+            text:val,
+            startDate:today,
+            repeatDaily:true
+          });
+          saveCustomTaskTemplates(templates);
+          list.splice(idx,1);
+          all[today]=list;
+          saveCustomTasks(all);
+          modal.style.display='none';
+          renderTasks();
+          renderProgress();
+          renderDailyActionEngine();
+          recordAuditEvent('task','Replaced daily task',task.id);
+        }
+      }
+    };
+    modal.querySelector('#retireDailyBtn').onclick=()=>{
+      let templates=loadCustomTaskTemplates();
+      templates=templates.filter(t=>t.id!==task.recurringTemplateId);
+      saveCustomTaskTemplates(templates);
+      list.splice(idx,1);
+      all[today]=list;
+      saveCustomTasks(all);
+      modal.style.display='none';
+      renderTasks();
+      renderProgress();
+      renderDailyActionEngine();
+      recordAuditEvent('task','Retired daily task',task.id);
+    };
+    modal.querySelector('#cancelRetireBtn').onclick=()=>{
+      modal.style.display='none';
+    };
+  }
+
+  function startTask(id,options){
     const today=getToday(),state=loadState();
     if(isDateLocked(today))return;
     if(!state[today])state[today]={};
-    state[today][id]=!state[today][id];
-    saveState(state);renderTasks();renderProgress();renderWeekView();
-    recordAuditEvent('task',`Task ${id+1} toggled ${state[today][id]?'on':'off'}.`,today);
+    const current=state[today][id];
+    if(isTaskCompletedEntry(current))return;
+    const nowIso=new Date().toISOString();
+    const next=(current&&typeof current==='object')?{...current}:{status:'in_progress'};
+    next.status='in_progress';
+    if(!next.startedAt)next.startedAt=nowIso;
+    const est=options&&Number.isFinite(options.estimatedMinutes)?options.estimatedMinutes:getTaskEstimatedMinutes(next);
+    if(Number.isFinite(est)&&est>0)next.estimatedMinutes=Math.max(10,Math.min(240,Math.round(est)));
+    if(!next.firstStartedAt)next.firstStartedAt=nowIso;
+    state[today][id]=next;
+    saveState(state);renderTasks();renderProgress();renderWeekView();renderDailyActionEngine();
+    const label=typeof id==='number'?`Task ${id+1}`:`Task ${id}`;
+    recordAuditEvent('task',`${label} marked in progress.`,today);
+  }
+  function completeTask(id){
+    const today=getToday(),state=loadState();
+    if(isDateLocked(today))return;
+    if(!state[today])state[today]={};
+    const current=state[today][id];
+    if(isTaskCompletedEntry(current))return;
+    const nowIso=new Date().toISOString();
+    const startedAt=(current&&typeof current==='object'&&current.startedAt)?current.startedAt:nowIso;
+    const estimated=getTaskEstimatedMinutes(current);
+    const actual=Math.max(0,Math.round((new Date(nowIso)-new Date(startedAt))/60000));
+    const overrunBy=(Number.isFinite(estimated)&&estimated>0)?Math.max(0,actual-estimated):0;
+    state[today][id]={status:'completed',startedAt,completedAt:nowIso,estimatedMinutes:estimated||undefined,actualMinutes:actual,overrunByMinutes:overrunBy||undefined};
+    saveState(state);renderTasks();renderProgress();renderWeekView();renderDailyActionEngine();
+    const label=typeof id==='number'?`Task ${id+1}`:`Task ${id}`;
+    recordAuditEvent('task',`${label} completed.`,today);
+    const summary={
+      taskId:String(id),
+      taskLabel:getTaskLabelById(id),
+      startedAt,
+      completedAt:nowIso,
+      estimatedMinutes:Number.isFinite(estimated)?estimated:null,
+      actualMinutes:actual,
+      overrunByMinutes:overrunBy
+    };
+    saveTaskCompletionSnapshot(summary);
+    openTaskCompletionModal(summary);
+  }
+  function toggleTask(id){
+    completeTask(id);
   }
   function renderTasks(){
     const ts=loadState()[getToday()]||{};
-    for(let i=0;i<5;i++){
-      const t=document.querySelector(`.task[data-id="${i}"]`);
-      const c=document.getElementById(`cb${i}`);
-      if(ts[i]){t.classList.add('done');c.innerHTML='✓';}
-      else{t.classList.remove('done');c.innerHTML='';}
+    const customWrap=document.getElementById('customTaskList');
+    if(!customWrap)return;
+
+    let custom=getTodayCustomTasks();
+    const sortMode=getTaskSortMode();
+    if(sortMode==='incomplete'){
+      custom=custom
+        .map((t,idx)=>({t,idx,done:isTaskCompletedEntry(ts[t.id])}))
+        .sort((a,b)=>{
+          if(a.done!==b.done)return a.done?1:-1;
+          return a.idx-b.idx;
+        })
+        .map(x=>x.t);
     }
+
+    customWrap.innerHTML='';
+    if(!custom.length){
+      customWrap.innerHTML='<div class="task-empty">Add your first task above.</div>';
+      return;
+    }
+    let firstPendingId='';
+    custom.forEach(task=>{
+      const taskEntry=ts[task.id];
+      const done=isTaskCompletedEntry(taskEntry);
+      const inProgress=isTaskInProgressEntry(taskEntry);
+      const est=getTaskEstimatedMinutes(taskEntry);
+      const actual=done?(taskEntry?.actualMinutes??getTaskActualMinutes(taskEntry)):null;
+      const elapsedInProgress=inProgress&&taskEntry?.startedAt?Math.max(0,Math.round((Date.now()-new Date(taskEntry.startedAt))/60000)):null;
+      const overrun=done?((taskEntry?.overrunByMinutes||0)>0):(inProgress&&Number.isFinite(est)&&Number.isFinite(elapsedInProgress)&&elapsedInProgress>est);
+      if(!done&&firstPendingId==='')firstPendingId=String(task.id);
+      const row=document.createElement('div');
+      row.className='task custom-task-item'+(done?' done':'')+(String(task.id)===firstPendingId?' task-next':'');
+      row.setAttribute('data-id',task.id);
+      const safeTitle=(task.text||'').replaceAll('<','&lt;').replaceAll('>','&gt;');
+      // Check if this is a repeated (daily) task
+      const isDaily=!!task.recurringTemplateId;
+      const tagHtml = isDaily
+        ? '<div class="task-tag tag-daily">Daily</div>'
+        : '';
+      const primaryButton=done
+        ? '<button type="button" class="custom-task-select" disabled>Completed</button>'
+        : (inProgress
+          ? `<button type="button" class="custom-task-select" onclick="completeTask('${task.id}')">Complete</button>`
+          : `<button type="button" class="custom-task-select" onclick="openEstimateModal('${task.id}')">Start Task</button>`);
+      const metrics=[];
+      if(Number.isFinite(est))metrics.push(`<span class="task-metric">Est ${formatMins(est)}</span>`);
+      if(done&&Number.isFinite(actual))metrics.push(`<span class="task-metric">Actual ${formatMins(actual)}</span>`);
+      if(inProgress&&Number.isFinite(elapsedInProgress))metrics.push(`<span class="task-metric">Elapsed ${formatMins(elapsedInProgress)}</span>`);
+      if(inProgress&&Number.isFinite(est)&&Number.isFinite(elapsedInProgress)){
+        const remaining=est-elapsedInProgress;
+        if(remaining>=0)metrics.push(`<span class="task-metric remaining">Left ${formatMins(remaining)}</span>`);
+        else metrics.push(`<span class="task-metric overrun">Over ${formatMins(Math.abs(remaining))}</span>`);
+      }
+      if(overrun)metrics.push('<span class="task-metric overrun">Overrun</span>');
+      row.innerHTML=`
+        <div class="custom-task-meta">
+          <div class="checkbox">${done?'✓':''}</div>
+          <div class="task-body">
+            <div class="task-header"><div class="task-title">${safeTitle}</div>${tagHtml}</div>
+            <div class="task-desc">${done?'Completed.':(inProgress?'In progress.':'Ready to start.')}</div>
+            ${metrics.length?`<div class="task-metrics">${metrics.join('')}</div>`:''}
+          </div>
+        </div>
+        ${primaryButton}
+        <button type="button" class="custom-task-delete" onclick="deleteCustomTask('${task.id}')">Delete</button>
+      `;
+      customWrap.appendChild(row);
+    });
   }
   function renderProgress(){
     const ts=loadState()[getToday()]||{};
-    const done=Object.values(ts).filter(Boolean).length;
-    document.getElementById('progressBar').style.width=(done/5*100)+'%';
-    document.getElementById('progressLabel').textContent=`${done} / 5 done today`;
+    const custom=getTodayCustomTasks();
+    const total=custom.length;
+    const done=custom.filter(t=>isTaskCompletedEntry(ts[t.id])).length;
+    const pct=total?Math.min(100,Math.round((done/total)*100)):0;
+    document.getElementById('progressBar').style.width=pct+'%';
+    document.getElementById('progressLabel').textContent=`${done} / ${total} done today`;
   }
   function resetDay(){
     const today=getToday();
@@ -536,7 +1193,640 @@
     renderTasks();
     renderProgress();
     renderWeekView();
+    renderDailyActionEngine();
     recordAuditEvent('task','Reset today\'s tasks.',today);
+  }
+
+  function loadNightPrep(){
+    try{return JSON.parse(localStorage.getItem(NIGHT_PREP_KEY))||{};}catch{return{};}
+  }
+  function saveNightPrep(v){
+    localStorage.setItem(NIGHT_PREP_KEY,JSON.stringify(v));
+  }
+  function openNightPrep(){
+    const modal=document.getElementById('nightPrepModal');
+    if(!modal)return;
+    const tomorrow=getDateOffset(1);
+    const prep=loadNightPrep()[tomorrow]||{};
+    const frog=document.getElementById('npFrog');
+    const time=document.getElementById('npStartTime');
+    const duration=document.getElementById('npDuration');
+    const step=document.getElementById('npFirstStep');
+    if(frog)frog.value=prep.frog||'';
+    if(time)time.value=prep.startTime||'08:00';
+    if(duration)duration.value=String(prep.duration||25);
+    if(step)step.value=prep.firstStep||'';
+    modal.style.display='flex';
+  }
+  function closeNightPrep(){
+    const modal=document.getElementById('nightPrepModal');
+    if(modal)modal.style.display='none';
+  }
+  function saveNightPrepFromUi(){
+    const frog=(document.getElementById('npFrog')?.value||'').trim();
+    const startTime=(document.getElementById('npStartTime')?.value||'08:00').trim()||'08:00';
+    const duration=Math.max(10,Math.min(120,parseInt(document.getElementById('npDuration')?.value||'25',10)||25));
+    const firstStep=(document.getElementById('npFirstStep')?.value||'').trim();
+    const tomorrow=getDateOffset(1);
+    const all=loadNightPrep();
+    all[tomorrow]={frog,startTime,duration,firstStep,createdAt:new Date().toISOString()};
+    saveNightPrep(all);
+    if(frog){
+      const allCustom=loadCustomTasks();
+      const list=allCustom[tomorrow]||[];
+      const exists=list.some(t=>String(t.text||'').trim().toLowerCase()===frog.toLowerCase());
+      if(!exists){
+        list.push({
+          id:`c${Date.now().toString(36)}${Math.random().toString(36).slice(2,6)}`,
+          text:frog
+        });
+        allCustom[tomorrow]=list;
+        saveCustomTasks(allCustom);
+      }
+    }
+    recordAuditEvent('plan','Saved night prep for tomorrow.',getToday());
+    closeNightPrep();
+    scheduleNightPrepNotification();
+    renderDailyActionEngine();
+  }
+  function getTodayMissionData(){
+    const today=getToday();
+    const tasks=loadState()[today]||{};
+    const custom=getTodayCustomTasks();
+    const doneCount=custom.filter(t=>isTaskCompletedEntry(tasks[t.id])).length;
+    const remainingTasks=getPendingCustomTasks(tasks);
+    const sessions=(function(){
+      try{const s=JSON.parse(localStorage.getItem(POMO_KEY))||{};return s[today]||0;}catch{return 0;}
+    })();
+    const hasReflection=loadReflections().some(r=>r.date===today&&((r.studied||r.avoided||r.tomorrow||'').trim().length>0));
+    const totalNeededBlocks=3;
+    const completedBlocks=(doneCount>=1?1:0)+(sessions>=1?1:0)+(hasReflection?1:0);
+    const remainingBlocks=Math.max(0,totalNeededBlocks-completedBlocks);
+    return {doneCount,remainingTasks,sessions,hasReflection,remainingBlocks,completedBlocks};
+  }
+  function formatTimeLeftToday(){
+    const now=new Date();
+    const end=new Date(now);
+    end.setHours(23,59,59,999);
+    const diff=Math.max(0,end-now);
+    const h=Math.floor(diff/3600000);
+    const m=Math.floor((diff%3600000)/60000);
+    return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`;
+  }
+  function buildMissionActions(){
+    const md=getTodayMissionData();
+    const actions=[];
+    if(md.remainingTasks.length){
+      actions.push({title:'Step 1',detail:`${md.remainingTasks[0].text}`});
+    }else actions.push({title:'Step 1',detail:'All tasks are complete.'});
+    if(md.sessions<1)actions.push({title:'Step 2',detail:'Run 1 focus sprint (25 min).'});
+    else actions.push({title:'Step 2',detail:'Focus sprint complete.'});
+    if(!md.hasReflection)actions.push({title:'Step 3',detail:'Write 3-line reflection before sleep.'});
+    else actions.push({title:'Step 3',detail:'Reflection complete.'});
+    return actions;
+  }
+
+  function getWeeklyCalibrationData(){
+    const state=loadState();
+    let estTotal=0,actualTotal=0,count=0;
+    for(let i=0;i<7;i++){
+      const ds=addDaysToDateStr(getToday(),-i);
+      const day=state[ds]||{};
+      Object.values(day).forEach(entry=>{
+        if(!isTaskCompletedEntry(entry)||!entry||typeof entry!=='object')return;
+        const est=getTaskEstimatedMinutes(entry);
+        const actual=Number.isFinite(entry.actualMinutes)?entry.actualMinutes:getTaskActualMinutes(entry);
+        if(!Number.isFinite(est)||!Number.isFinite(actual))return;
+        estTotal+=est;
+        actualTotal+=actual;
+        count++;
+      });
+    }
+    if(!count||estTotal<=0)return {hasData:false,accuracy:0,count:0,estTotal:0,actualTotal:0};
+    const accuracy=Math.max(0,Math.round((1-Math.abs(actualTotal-estTotal)/estTotal)*100));
+    return {hasData:true,accuracy,count,estTotal,actualTotal};
+  }
+
+  function pickSmartNextTask(stateToday){
+    const pending=getPendingCustomTasks(stateToday);
+    if(!pending.length)return null;
+    const inProgressFirst=pending.find(t=>isTaskInProgressEntry(getTaskStateEntry(stateToday,t.id)));
+    if(inProgressFirst){
+      const est=getTaskEstimatedMinutes(getTaskStateEntry(stateToday,inProgressFirst.id))||45;
+      return {task:inProgressFirst,est,idx:0,reason:'Continue in-progress task before switching.'};
+    }
+    const hour=new Date().getHours();
+    const enriched=pending.map((t,idx)=>{
+      const entry=getTaskStateEntry(stateToday,t.id);
+      const est=getTaskEstimatedMinutes(entry)||45;
+      return {task:t,est,idx};
+    });
+    if(hour<11){
+      enriched.sort((a,b)=>b.est-a.est||a.idx-b.idx);
+      return {...enriched[0],reason:'Hardest first (morning deep-work window).'};
+    }
+    enriched.sort((a,b)=>a.est-b.est||a.idx-b.idx);
+    return {...enriched[0],reason:'Quick win next (keep momentum).'};
+  }
+
+  function getTaskHealthSignals(){
+    const today=getToday();
+    const state=loadState();
+    const day=state[today]||{};
+    const now=Date.now();
+    const overrun=[];
+    const stuck=[];
+    let changed=false;
+    Object.keys(day).forEach(id=>{
+      const entry=day[id];
+      if(!isTaskInProgressEntry(entry)||!entry.startedAt)return;
+      const elapsed=Math.max(0,Math.round((now-new Date(entry.startedAt))/60000));
+      const est=getTaskEstimatedMinutes(entry);
+      if(Number.isFinite(est)&&est>0){
+        const overrunAt=Math.round(Math.min(est*1.25,est+15));
+        const snoozeUntilMs=entry.overrunSnoozeUntil?new Date(entry.overrunSnoozeUntil).getTime():0;
+        const snoozed=Number.isFinite(snoozeUntilMs)&&snoozeUntilMs>now;
+        if(elapsed>=overrunAt&&!snoozed){
+          overrun.push({id,elapsed,est});
+          if(!entry.overrunNotifiedAt){
+            entry.overrunNotifiedAt=new Date().toISOString();
+            changed=true;
+          }
+        }
+      }
+      if(elapsed>=STUCK_TASK_MINUTES)stuck.push({id,elapsed});
+    });
+    if(changed){
+      state[today]=day;
+      saveState(state);
+    }
+    return {overrun,stuck};
+  }
+
+  function renderMissionNoticeActions(actions){
+    const wrap=document.getElementById('missionNoticeActions');
+    if(!wrap)return;
+    wrap.innerHTML='';
+    if(!actions||!actions.length){
+      wrap.style.display='none';
+      return;
+    }
+    actions.forEach(action=>{
+      const btn=document.createElement('button');
+      btn.type='button';
+      btn.className='engine-notice-btn'+(action.primary?' primary':'');
+      btn.textContent=action.label;
+      btn.addEventListener('click',action.onClick);
+      wrap.appendChild(btn);
+    });
+    wrap.style.display='flex';
+  }
+
+  function snoozeOverrunTask(taskId,minutes){
+    const today=getToday();
+    const state=loadState();
+    if(!state[today]||!state[today][taskId]||typeof state[today][taskId]!=='object')return;
+    const until=new Date(Date.now()+Math.max(5,minutes||15)*60000).toISOString();
+    state[today][taskId].overrunSnoozeUntil=until;
+    saveState(state);
+    setTaskAddStatus(`Reminder snoozed for ${Math.max(5,minutes||15)}m.`, 'ok');
+    runTaskHealthCheck();
+  }
+
+  function extendTaskEstimate(taskId,minutes){
+    const today=getToday();
+    const state=loadState();
+    if(!state[today]||!state[today][taskId]||typeof state[today][taskId]!=='object')return;
+    const entry=state[today][taskId];
+    const current=getTaskEstimatedMinutes(entry)||45;
+    const next=Math.max(10,Math.min(360,current+Math.max(5,minutes||15)));
+    entry.estimatedMinutes=next;
+    entry.overrunSnoozeUntil=new Date(Date.now()+10*60000).toISOString();
+    state[today][taskId]=entry;
+    saveState(state);
+    setTaskAddStatus(`Estimate updated to ${next}m.`, 'ok');
+    renderTasks();
+    renderDailyActionEngine();
+  }
+
+  function moveTaskToTomorrow(taskId){
+    const today=getToday();
+    const tomorrow=addDaysToDateStr(today,1);
+    const all=loadCustomTasks();
+    const todayList=[...(all[today]||[])];
+    const idx=todayList.findIndex(t=>String(t.id)===String(taskId));
+    if(idx<0)return;
+    const source=todayList[idx];
+    todayList.splice(idx,1);
+    const tomorrowList=[...(all[tomorrow]||[])];
+    const movedId=`c${Date.now().toString(36)}${Math.random().toString(36).slice(2,6)}`;
+    tomorrowList.push({id:movedId,text:`${source.text} (carry-over)`});
+    all[today]=todayList;
+    all[tomorrow]=tomorrowList;
+    saveCustomTasks(all);
+
+    const state=loadState();
+    const todayState=state[today]||{};
+    const entry=getTaskStateEntry(todayState,taskId);
+    delete todayState[taskId];
+    state[today]=todayState;
+    if(!state[tomorrow])state[tomorrow]={};
+    const est=getTaskEstimatedMinutes(entry);
+    state[tomorrow][movedId]={status:'not_started',estimatedMinutes:est||undefined,rolledOverFrom:today};
+    saveState(state);
+
+    setTaskAddStatus(`Moved to ${tomorrow} as carry-over.`, 'warn');
+    recordAuditEvent('task',`Moved task to tomorrow: ${source.text}`,today);
+    renderTasks();
+    renderProgress();
+    renderDailyActionEngine();
+  }
+
+  function splitTaskFromHealth(taskId,minutes){
+    const splitMinutes=Math.max(60,Math.round((minutes||90)/5)*5);
+    if(splitCustomTask(taskId,splitMinutes)){
+      runTaskHealthCheck();
+    }
+  }
+
+  function runTaskHealthCheck(){
+    const noticeEl=document.getElementById('missionNotice');
+    const modeEl=document.getElementById('missionModeLabel');
+    if(!noticeEl)return;
+    const {overrun,stuck}=getTaskHealthSignals();
+    if(overrun.length){
+      const id=overrun[0].id;
+      const t=getTaskLabelById(overrun[0].id);
+      noticeEl.style.display='block';
+      noticeEl.textContent=`Overrun: ${t} has crossed estimate (${overrun[0].elapsed}m vs ${overrun[0].est}m). Continue or split scope.`;
+      renderMissionNoticeActions([
+        {label:'Continue 15m',onClick:()=>snoozeOverrunTask(id,15)},
+        {label:'+15m Estimate',onClick:()=>extendTaskEstimate(id,15),primary:true},
+        {label:'Split Task',onClick:()=>splitTaskFromHealth(id,Math.max(overrun[0].est,overrun[0].elapsed))},
+        {label:'Move Tomorrow',onClick:()=>moveTaskToTomorrow(id)}
+      ]);
+      return;
+    }
+    if(stuck.length){
+      const id=stuck[0].id;
+      const t=getTaskLabelById(stuck[0].id);
+      noticeEl.style.display='block';
+      noticeEl.textContent=`Stuck signal: ${t} has been in progress for ${stuck[0].elapsed}m. Do a 15m finish sprint or break it down.`;
+      renderMissionNoticeActions([
+        {label:'Continue 15m',onClick:()=>snoozeOverrunTask(id,15),primary:true},
+        {label:'Split Task',onClick:()=>splitTaskFromHealth(id,stuck[0].elapsed)},
+        {label:'Move Tomorrow',onClick:()=>moveTaskToTomorrow(id)}
+      ]);
+      return;
+    }
+    if(modeEl&&modeEl.textContent!=='minimum'){
+      noticeEl.style.display='none';
+      noticeEl.textContent='';
+    }
+    renderMissionNoticeActions([]);
+  }
+
+  function renderReflectionCoach(){
+    const el=document.getElementById('reflectionCoachText');
+    if(!el)return;
+    const state=loadState();
+    let overruns=0,lateStarts=0;
+    for(let i=0;i<7;i++){
+      const ds=addDaysToDateStr(getToday(),-i);
+      const day=state[ds]||{};
+      Object.values(day).forEach(entry=>{
+        if(!entry||typeof entry!=='object')return;
+        if(Number.isFinite(entry.overrunByMinutes)&&entry.overrunByMinutes>0)overruns++;
+        if(entry.firstStartedAt&&new Date(entry.firstStartedAt).getHours()>=11)lateStarts++;
+      });
+    }
+    if(overruns>=3){
+      el.textContent='Coach: 3+ tasks overran this week. In reflection, write why estimates were low and one fix for tomorrow.';
+      return;
+    }
+    if(lateStarts>=4){
+      el.textContent='Coach: Most starts happened after 11 AM. In reflection, set a specific first-start time for tomorrow.';
+      return;
+    }
+    const cal=getWeeklyCalibrationData();
+    if(cal.hasData){
+      el.textContent=`Coach: Weekly estimate accuracy is ${cal.accuracy}%. Note one thing you will improve next week.`;
+      return;
+    }
+    el.textContent='Coach: Keep reflection concrete. Mention one delay trigger and one prevention step for tomorrow.';
+  }
+
+  function getNextAction(){
+    const stateToday=loadState()[getToday()]||{};
+    const customPending=pickSmartNextTask(stateToday);
+    if(customPending){
+      return {
+        text:`${customPending.task.text} — ${customPending.reason}`,
+        button:'Do This Task',
+        type:'task',
+        id:customPending.task.id
+      };
+    }
+    const md=getTodayMissionData();
+    if(md.sessions<1){
+      return {
+        text:'Run 1 focus sprint (25 min)',
+        button:'Start Sprint',
+        type:'sprint'
+      };
+    }
+    if(!md.hasReflection){
+      return {
+        text:'Write 3-line reflection before sleep',
+        button:'Open Reflection',
+        type:'reflection'
+      };
+    }
+    return {
+      text:'All done. Set Night Prep for tomorrow',
+      button:'Night Prep',
+      type:'night-prep'
+    };
+  }
+
+  function renderNextActionWidget(){
+    const textEl=document.getElementById('nextActionText');
+    const btnEl=document.getElementById('nextActionBtn');
+    const lockToggle=document.getElementById('focusLockToggle');
+    if(!textEl||!btnEl)return;
+    const action=getNextAction();
+    textEl.textContent=action.text;
+    btnEl.textContent=action.button;
+    btnEl.dataset.actionType=action.type;
+    if(action.type==='task')btnEl.dataset.actionId=String(action.id);
+    else btnEl.dataset.actionId='';
+
+    // Set lock toggle state from localStorage
+    if(lockToggle){
+      lockToggle.checked=!!localStorage.getItem('focusLock');
+      lockToggle.onchange=function(){
+        if(this.checked){
+          document.body.classList.add('focus-locked');
+          localStorage.setItem('focusLock','1');
+        }else{
+          document.body.classList.remove('focus-locked');
+          localStorage.removeItem('focusLock');
+        }
+      };
+      if(lockToggle.checked){
+        document.body.classList.add('focus-locked');
+      }else{
+        document.body.classList.remove('focus-locked');
+      }
+    }
+  }
+
+  function doNextAction(){
+    const btnEl=document.getElementById('nextActionBtn');
+    if(!btnEl)return;
+    const type=btnEl.dataset.actionType;
+    if(type==='must-do'){
+      startMustDoSprint();
+      return;
+    }
+    if(type==='task'){
+      const id=btnEl.dataset.actionId;
+      openEstimateModal(id);
+      focusTaskById(/^[0-9]+$/.test(id)?Number(id):id);
+      // Auto-unlock focus after completing
+      if(document.body.classList.contains('focus-locked')){
+        document.body.classList.remove('focus-locked');
+        localStorage.removeItem('focusLock');
+        const lockToggle=document.getElementById('focusLockToggle');
+        if(lockToggle)lockToggle.checked=false;
+      }
+      return;
+    }
+    if(type==='sprint'){
+      startMissionSprint();
+      renderNextActionWidget();
+      if(document.body.classList.contains('focus-locked')){
+        document.body.classList.remove('focus-locked');
+        localStorage.removeItem('focusLock');
+        const lockToggle=document.getElementById('focusLockToggle');
+        if(lockToggle)lockToggle.checked=false;
+      }
+      return;
+    }
+    if(type==='reflection'){
+      const box=document.querySelector('.tile-reflection');
+      const input=document.getElementById('ref1');
+      if(box){
+        box.scrollIntoView({behavior:'smooth',block:'start'});
+      }
+      if(input){
+        input.focus();
+      }
+      if(document.body.classList.contains('focus-locked')){
+        document.body.classList.remove('focus-locked');
+        localStorage.removeItem('focusLock');
+        const lockToggle=document.getElementById('focusLockToggle');
+        if(lockToggle)lockToggle.checked=false;
+      }
+      return;
+    }
+    openNightPrep();
+    if(document.body.classList.contains('focus-locked')){
+      document.body.classList.remove('focus-locked');
+      localStorage.removeItem('focusLock');
+      const lockToggle=document.getElementById('focusLockToggle');
+      if(lockToggle)lockToggle.checked=false;
+    }
+  }
+  // On load, restore focus lock if set
+  document.addEventListener('DOMContentLoaded',()=>{
+    if(localStorage.getItem('focusLock')){
+      document.body.classList.add('focus-locked');
+      const lockToggle=document.getElementById('focusLockToggle');
+      if(lockToggle)lockToggle.checked=true;
+    }
+  });
+  function renderWeeklyExecutionReview(){
+    const el=document.getElementById('missionWeeklyReview');
+    if(!el)return;
+    const state=loadState();
+    const pomo=loadPomoDailyLog();
+    const refs=loadReflections();
+    const today=new Date();
+    let fullDays=0,sprintDays=0,reflectionDays=0;
+    for(let i=0;i<7;i++){
+      const d=new Date(today);d.setDate(today.getDate()-i);
+      const ds=d.toISOString().split('T')[0];
+      const done=countCompletedTasks(state[ds]||{});
+      if(done>=3)fullDays++;
+      if((pomo[ds]&&pomo[ds].sessions)||0>=1)sprintDays++;
+      if(refs.some(r=>r.date===ds&&((r.studied||r.avoided||r.tomorrow||'').trim().length>0))){reflectionDays++;}
+    }
+    let weekTasks=0,weekSprints=0;
+    for(let i=0;i<7;i++){
+      const d=new Date(today);d.setDate(today.getDate()-i);
+      const ds=d.toISOString().split('T')[0];
+      weekTasks+=countCompletedTasks(state[ds]||{});
+      weekSprints+=((pomo[ds]&&pomo[ds].sessions)||0);
+    }
+    const cal=getWeeklyCalibrationData();
+    const calText=cal.hasData?` | Estimate accuracy: ${cal.accuracy}% (${cal.actualTotal}m vs ${cal.estTotal}m)`:' | Estimate accuracy: add estimates to unlock';
+    el.textContent=`7-day review: Days >=3 tasks: ${fullDays}/7 | Sprint days: ${sprintDays}/7 | Reflection days: ${reflectionDays}/7 | Target: ${weekTasks}/20 tasks, ${weekSprints}/10 sprints${calText}`;
+  }
+
+  function getDailyEngineData(){
+    const md=getTodayMissionData();
+    const focusPlan=getTodayFocusPlan();
+    const todayPomo=loadPomoDailyLog()[getToday()]||{focusMinutes:0,sessions:0};
+    let progressPct=Math.round((md.completedBlocks/3)*100);
+    let mode=md.remainingBlocks>1?'minimum-mode':'normal';
+    let directive=md.remainingBlocks>1
+      ?'Must-do minimum is active: complete one task, one sprint, one reflection.'
+      :'Follow the next steps and close the day cleanly.';
+    if(focusPlan&&Number.isFinite(focusPlan.estimatedMinutes)&&focusPlan.estimatedMinutes>0){
+      const spent=todayPomo.focusMinutes||0;
+      progressPct=Math.max(progressPct,Math.min(100,Math.round((spent/focusPlan.estimatedMinutes)*100)));
+      mode='focus-plan';
+      directive=`Current focus: ${focusPlan.taskLabel||'Selected task'} | Estimate: ${focusPlan.estimatedMinutes}m | Done: ${spent}m`;
+    }
+    return {
+      progressPct,
+      mode,
+      actions:buildMissionActions(),
+      directive,
+      timeLeft:formatTimeLeftToday(),
+      remainingBlocks:md.remainingBlocks
+    };
+  }
+
+  function renderDailyActionEngine(){
+    const scoreEl=document.getElementById('missionTimeLeft');
+    const labelEl=document.getElementById('missionModeLabel');
+    const barEl=document.getElementById('missionProgressBar');
+    const listEl=document.getElementById('dailyActionList');
+    const directiveEl=document.getElementById('dailyDirective');
+    const noticeEl=document.getElementById('missionNotice');
+    if(!scoreEl||!labelEl||!barEl||!listEl||!directiveEl||!noticeEl)return;
+    const data=getDailyEngineData();
+    scoreEl.textContent=data.timeLeft;
+    barEl.style.width=`${data.progressPct}%`;
+    labelEl.textContent=data.mode==='minimum-mode'?'minimum':(data.mode==='focus-plan'?'focused':'normal');
+    labelEl.style.color=data.mode==='minimum-mode'?'#f0e040':(data.mode==='focus-plan'?'#79b7ff':'#8ad79d');
+    labelEl.style.borderColor=data.mode==='minimum-mode'?'#5f561f':(data.mode==='focus-plan'?'#274a6a':'#1f4f2c');
+    directiveEl.textContent=data.directive;
+    if(data.mode==='minimum-mode'){
+      noticeEl.style.display='block';
+      noticeEl.textContent='Do only the must-do minimum now. Keep momentum, no overthinking.';
+    }else{
+      noticeEl.style.display='none';
+      noticeEl.textContent='';
+    }
+    if(!data.actions.length){
+      listEl.innerHTML='<div class="engine-action"><span class="engine-dot"></span><span><b>On track:</b> keep consistency and close with reflection tonight.</span></div>';
+      renderWeeklyExecutionReview();
+      renderNextActionWidget();
+      runTaskHealthCheck();
+      return;
+    }
+    listEl.innerHTML='';
+    data.actions.forEach(a=>{
+      const item=document.createElement('div');
+      item.className='engine-action';
+      item.innerHTML=`<span class="engine-dot"></span><span><b>${a.title}:</b> ${a.detail}</span>`;
+      listEl.appendChild(item);
+    });
+    renderWeeklyExecutionReview();
+    renderNextActionWidget();
+    runTaskHealthCheck();
+  }
+
+  function focusTaskById(taskId){
+    document.querySelectorAll('.task').forEach(el=>el.classList.remove('priority-pulse'));
+    const target=document.querySelector(`.task[data-id="${taskId}"]`)||document.querySelector(`.custom-task-item[data-id="${taskId}"]`);
+    if(!target)return;
+    target.classList.add('priority-pulse');
+    target.scrollIntoView({behavior:'smooth',block:'center'});
+    setTimeout(()=>target.classList.remove('priority-pulse'),3500);
+  }
+
+  function focusHighestPriorityTask(){
+    const todayState=loadState()[getToday()]||{};
+    const customPending=getPendingCustomTasks(todayState)[0];
+    if(customPending){
+      focusTaskById(customPending.id);
+      return;
+    }
+    const pending=TASK_LABELS.map((_,idx)=>idx).find(idx=>!todayState[idx]);
+    document.querySelectorAll('.task').forEach(el=>el.classList.remove('priority-pulse'));
+    if(pending===undefined)return;
+    focusTaskById(pending);
+  }
+
+  function startMissionSprint(){
+    setPomoMode('focus');
+    if(pomoState!==POMO_STATES.RUNNING)togglePomo();
+    focusHighestPriorityTask();
+    recordAuditEvent('plan','Started mission sprint from ladder.');
+    renderDailyActionEngine();
+  }
+
+  function sendAppNotification(title,body,tag){
+    if(!('Notification' in window)||Notification.permission!=='granted'||!swReg)return;
+    try{swReg.showNotification(title,{body,tag:tag||'daily-mission'});}catch(_){ }
+  }
+  function scheduleNightPrepNotification(){
+    const today=getToday();
+    const prepToday=loadNightPrep()[today];
+    if(!prepToday||!prepToday.startTime)return;
+    const [hh,mm]=prepToday.startTime.split(':').map(n=>parseInt(n,10));
+    if(!Number.isFinite(hh)||!Number.isFinite(mm))return;
+    const now=new Date();
+    const target=new Date(now);
+    target.setHours(hh,mm,0,0);
+    if(target<=now)return;
+    const ms=target-now;
+    setTimeout(()=>{
+      const step=prepToday.firstStep?`First step: ${prepToday.firstStep}`:'Start your first block now.';
+      sendAppNotification('Mission start now',`${prepToday.frog||'Start your top task'} (${prepToday.duration||25}m). ${step}`,'night-prep-start');
+    },ms);
+  }
+  function runAntiDriftCheck(){
+    const hour=new Date().getHours();
+    const md=getTodayMissionData();
+    if(hour<11||md.doneCount>0||md.sessions>0)return;
+    const key=`${getToday()}-${hour}`;
+    if(localStorage.getItem(LAST_DRIFT_ALERT_KEY)===key)return;
+    localStorage.setItem(LAST_DRIFT_ALERT_KEY,key);
+    const topPending=getPendingCustomTasks(loadState()[getToday()]||{})[0]?.text||'your top task';
+    sendAppNotification('Anti-drift: 10-minute start',`Start now: ${topPending}. Just begin for 10 minutes.`,'anti-drift');
+    const noticeEl=document.getElementById('missionNotice');
+    if(noticeEl){
+      noticeEl.style.display='block';
+      noticeEl.textContent='Anti-drift trigger: start 10 minutes on your first task now.';
+    }
+  }
+  function scheduleAntiDriftWatcher(){
+    runAntiDriftCheck();
+    setInterval(runAntiDriftCheck,15*60*1000);
+    document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')runAntiDriftCheck();});
+    window.addEventListener('focus',runAntiDriftCheck);
+  }
+  function scheduleTaskHealthWatcher(){
+    runTaskHealthCheck();
+    setInterval(()=>{
+      runTaskHealthCheck();
+      renderTasks();
+    },60*1000);
+    document.addEventListener('visibilitychange',()=>{
+      if(document.visibilityState==='visible'){
+        runTaskHealthCheck();
+        renderTasks();
+      }
+    });
+    window.addEventListener('focus',()=>{
+      runTaskHealthCheck();
+      renderTasks();
+    });
   }
 
   function initTaskAccessibility(){
@@ -939,13 +2229,15 @@
       const ds=d.toISOString().split('T')[0];
       const isFuture=ds>today,isToday=ds===today;
       const tasks=state[ds]||{};
-      const done=Object.values(tasks).filter(Boolean).length;
+      const done=countCompletedTasks(tasks);
+      const totalForDay=getCustomTasksForDate(ds).length;
+      const isFull=totalForDay>0&&done>=totalForDay;
       const col=document.createElement('div');col.className='week-day';
       const lbl=document.createElement('div');lbl.className='week-day-label';lbl.textContent=dayNames[d.getDay()];
       const dot=document.createElement('div');dot.className='week-day-dot';
       if(isToday)dot.classList.add('today-ring');
       if(isFuture){dot.classList.add('future');dot.textContent=d.getDate();}
-      else if(log.includes(ds)||done===5){
+      else if(log.includes(ds)||isFull){
         if(photos[ds]){
           dot.classList.add('full-photo');
           dot.style.backgroundImage='none';
@@ -966,7 +2258,11 @@
         }
         completedFull++;
       }
-      else if(done>0){dot.classList.add('partial');dot.innerHTML=`<span style="font-size:13px">${done}</span><span style="font-size:7px;color:#c1c1c1">/5</span>`;}
+      else if(done>0){
+        const totalForDay=Math.max(1,getCustomTasksForDate(ds).length);
+        dot.classList.add('partial');
+        dot.innerHTML=`<span style="font-size:13px">${done}</span><span style="font-size:7px;color:#c1c1c1">/${totalForDay}</span>`;
+      }
       else{dot.classList.add('empty');dot.textContent=d.getDate();}
       col.appendChild(lbl);col.appendChild(dot);grid.appendChild(col);
     }
@@ -976,6 +2272,7 @@
     else s.innerHTML=`<b>${completedFull}/7</b> days completed this week`;
     renderStreakAnalytics();
     renderWeeklyReportCard();
+    renderDailyActionEngine();
   }
 
   // POMODORO
@@ -1102,7 +2399,7 @@
   const PF_CIRC=2*Math.PI*23;
   function updatePomoDisplay(){
     const m=Math.floor(pomoRemaining/60),s=pomoRemaining%60;
-    const timeStr=String(m).padStart(2,'0')+':'+String(s).padStart(2,'0');
+    const timeStr=String(m).padStart(2,'0')+(s<10?'0'+s:' '+s);
     const modeLabel={focus:'FOCUS',short:'SHORT BREAK',long:'LONG BREAK'}[pomoMode];
     // main (if full card exists)
     const mainTime=document.getElementById('pomoTime');
@@ -1199,6 +2496,7 @@
     pomoRemaining=pomoTotal;
     transitionPomoState(POMO_STATES.IDLE);
     updatePomoDisplay();
+    renderDailyActionEngine();
   }
 
   function pomoTick(){
@@ -1307,6 +2605,7 @@
       if(mainBtn)mainBtn.textContent='RESUME';
       recordAuditEvent('pomodoro',`Paused ${pomoMode} session at ${Math.floor(pomoRemaining/60)}m ${pomoRemaining%60}s.`);
       updatePomoDisplay();
+      renderDailyActionEngine();
     }else{
       const wasPaused=pomoState===POMO_STATES.PAUSED;
       if(pomoState===POMO_STATES.COMPLETED)pomoRemaining=pomoTotal;
@@ -1315,6 +2614,7 @@
       if(mainBtn)mainBtn.textContent='PAUSE';
       recordAuditEvent('pomodoro',`${wasPaused?'Resumed':'Started'} ${pomoMode} session.`);
       updatePomoDisplay();
+      renderDailyActionEngine();
     }
   }
   function resetPomo(){
@@ -1324,6 +2624,7 @@
     if(mainBtn)mainBtn.textContent='START';
     recordAuditEvent('pomodoro','Reset pomodoro timer.');
     updatePomoDisplay();
+    renderDailyActionEngine();
   }
   function loadPomoSessions(){
     let sessions={};try{sessions=JSON.parse(localStorage.getItem(POMO_KEY))||{};}catch{}
@@ -1456,7 +2757,7 @@
     }
     localStorage.setItem(STREAK_KEY,JSON.stringify(streak));
     localStorage.setItem(STREAK_LOG_KEY,JSON.stringify(log));
-    renderStreak();updateStreakBtn(log.includes(today));renderWeekView();
+    renderStreak();updateStreakBtn(log.includes(today));renderWeekView();renderDailyActionEngine();
     if(markedNow){
       openWeekChoiceModal(today);
     }
@@ -1496,9 +2797,10 @@
   }
   function getDayCompletionLevel(ds,state,log){
     if(log.includes(ds))return 3;
-    const done=Object.values(state[ds]||{}).filter(Boolean).length;
-    if(done>=5)return 3;
-    if(done>=3)return 2;
+    const done=countCompletedTasks(state[ds]||{});
+    const total=getCustomTasksForDate(ds).length;
+    if(total>0&&done>=total)return 3;
+    if(total>0&&done>=Math.ceil(total*0.6))return 2;
     if(done>=1)return 1;
     return 0;
   }
@@ -1608,11 +2910,18 @@
     const saved=document.getElementById('reflectionSaved');
     saved.style.display='block';setTimeout(()=>saved.style.display='none',2500);
     renderReflectionHistory();
+    renderReflectionCoach();
+    renderDailyActionEngine();
+    openNightPrep();
   }
   function renderReflectionHistory(){
     const refs=loadReflections();
     const hist=document.getElementById('reflectionHistory'),list=document.getElementById('reflectionList');
-    if(refs.length===0){hist.style.display='none';return;}
+    if(refs.length===0){
+      hist.style.display='none';
+      renderReflectionCoach();
+      return;
+    }
     hist.style.display='block';list.innerHTML='';
     const today=getToday();
     const todayEntry=refs.find(r=>r.date===today);
@@ -1629,6 +2938,7 @@
         (r.tomorrow?`<div class="rh-entry-row"><b>TOMORROW: </b>${r.tomorrow}</div>`:'');
       list.appendChild(el);
     });
+    renderReflectionCoach();
   }
 
   // DATE & COUNTDOWN
@@ -1686,6 +2996,7 @@
     renderWeeklyReportCard();
     updateDayLockBadge();
     renderAuditLog();
+    renderDailyActionEngine();
   }
   function finalizeSnapshotIfDue(){
     const now=new Date();
@@ -1768,6 +3079,81 @@
     }
   }
 
+  function reorderDashboardTiles(){
+    const main=document.getElementById('mainContent');
+    if(!main)return;
+    const order=[
+      'tile-next',
+      'tile-tasks',
+      'tile-engine',
+      'tile-subjects',
+      'tile-week',
+      'tile-streak',
+      'tile-reflection',
+      'tile-reality'
+    ];
+    order.forEach(cls=>{
+      const el=main.querySelector(`.tile.${cls}`);
+      if(el)main.appendChild(el);
+    });
+  }
+
+  function applySimpleTileLimit(){
+    const main=document.getElementById('mainContent');
+    if(!main)return;
+    const tiles=[...main.querySelectorAll('.tile')];
+    tiles.forEach((t,idx)=>{
+      if(idx>=5)t.classList.add('simple-hidden');
+      else t.classList.remove('simple-hidden');
+    });
+    let btn=document.getElementById('showMoreTilesBtn');
+    if(!btn){
+      btn=document.createElement('button');
+      btn.id='showMoreTilesBtn';
+      btn.className='tiny-btn';
+      btn.textContent='More';
+      btn.style.margin='10px 0 14px';
+      btn.addEventListener('click',()=>{
+        const hidden=main.querySelectorAll('.tile.simple-hidden');
+        hidden.forEach(h=>h.classList.remove('simple-hidden'));
+        btn.remove();
+      });
+      const firstHidden=tiles[5];
+      if(firstHidden)main.insertBefore(btn,firstHidden);
+    }
+  }
+
+  function bindSimplifiedUiControls(){
+    const toggleDetails=document.getElementById('toggleStreakDetailsBtn');
+    const streakWrap=document.getElementById('streakDetailsWrap');
+    if(toggleDetails&&streakWrap){
+      toggleDetails.addEventListener('click',()=>{
+        const open=streakWrap.style.display!=='none';
+        streakWrap.style.display=open?'none':'block';
+        toggleDetails.textContent=open?'View Details':'Hide Details';
+      });
+    }
+
+    const toggleSettings=document.getElementById('toggleSettingsBtn');
+    const panel=document.getElementById('settingsPanel');
+    if(toggleSettings&&panel){
+      toggleSettings.addEventListener('click',()=>{
+        const open=panel.style.display!=='none';
+        panel.style.display=open?'none':'block';
+        toggleSettings.textContent=open?'Settings & Data':'Hide Settings';
+      });
+    }
+
+    const sortSelect=document.getElementById('taskSortMode');
+    if(sortSelect){
+      sortSelect.value=getTaskSortMode();
+      sortSelect.addEventListener('change',()=>{
+        setTaskSortMode(sortSelect.value);
+        renderTasks();
+      });
+    }
+  }
+
   // PWA
   let deferredPrompt=null;
   window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();deferredPrompt=e;document.getElementById('installBanner').style.display='block';});
@@ -1795,7 +3181,13 @@
     else if(Notification.permission==='granted')scheduleReminder();
   }
   function requestNotifPermission(){
-    Notification.requestPermission().then(p=>{document.getElementById('notifBanner').style.display='none';if(p==='granted')scheduleReminder();});
+    Notification.requestPermission().then(p=>{
+      document.getElementById('notifBanner').style.display='none';
+      if(p==='granted'){
+        scheduleReminder();
+        scheduleNightPrepNotification();
+      }
+    });
   }
   function scheduleReminder(){
     if(reminderLoopStarted||!('serviceWorker' in navigator)||!('Notification' in window))return;
@@ -1844,8 +3236,12 @@
 
   // INIT
   enforceStreakContinuity();
+  reorderDashboardTiles();
+  applySimpleTileLimit();
   renderDate();renderCountdown();renderTasks();renderProgress();
   renderStreak();renderWeekView();renderSubjects();
+  initTaskPlanDatePicker();
+  bindSimplifiedUiControls();
   initWeekPhotoStorage();
   loadPomoSessions();renderReflectionHistory();
   finalizeDailySnapshot(getDateOffset(-1));
@@ -1855,6 +3251,7 @@
   renderAuditLog();
   updateStreakBtn(getStreakLog().includes(getToday()));
   updatePomoDisplay();
+  renderDailyActionEngine();
   initTaskAccessibility();
   const weekKeepTickBtn=document.getElementById('weekKeepTickBtn');
   if(weekKeepTickBtn){
@@ -1907,20 +3304,25 @@
   }
   const openMorningModeBtn=document.getElementById('openMorningModeBtn');
   if(openMorningModeBtn)openMorningModeBtn.addEventListener('click',openMorningMode);
+  const npCancelBtn=document.getElementById('npCancelBtn');
+  if(npCancelBtn)npCancelBtn.addEventListener('click',closeNightPrep);
+  const npSaveBtn=document.getElementById('npSaveBtn');
+  if(npSaveBtn)npSaveBtn.addEventListener('click',saveNightPrepFromUi);
   const morningCloseBtn=document.getElementById('morningCloseBtn');
   if(morningCloseBtn)morningCloseBtn.addEventListener('click',closeMorningMode);
   const morningStartFocusBtn=document.getElementById('morningStartFocusBtn');
-  if(morningStartFocusBtn)morningStartFocusBtn.addEventListener('click',()=>{
-    closeMorningMode();
-    setPomoMode('focus');
-    if(!pomoRunning)togglePomo();
-  });
+  if(morningStartFocusBtn)morningStartFocusBtn.addEventListener('click',saveMorningFocusSelection);
+  const taskCompletionCloseBtn=document.getElementById('taskCompletionCloseBtn');
+  if(taskCompletionCloseBtn)taskCompletionCloseBtn.addEventListener('click',closeTaskCompletionModal);
   const downloadWeeklyReportBtn=document.getElementById('downloadWeeklyReportBtn');
   if(downloadWeeklyReportBtn)downloadWeeklyReportBtn.addEventListener('click',downloadWeeklyReport);
   maybeShowBackupReminder();
   updateBackupAgeText();
   updateStorageStatus();
   renderWeeklyReportCard();
+  scheduleNightPrepNotification();
+  scheduleAntiDriftWatcher();
+  scheduleTaskHealthWatcher();
   // Expose manual test trigger.
   window.runPomoUnitTests=runPomoUnitTests;
   initWeekPhotoKeyboardShortcuts();
