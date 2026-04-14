@@ -70,35 +70,32 @@ renderTasks = function() {
     const isDaily=!!task.recurringTemplateId;
     const tagHtml = isDaily ? '<div class="task-tag tag-daily">Daily</div>' : '';
     let metrics=[];
-    if(Number.isFinite(est))metrics.push(`<span class=\"task-metric\">Est ${formatMins(est)}</span>`);
-    if(done&&Number.isFinite(actual))metrics.push(`<span class=\"task-metric\">Actual ${formatMins(actual)}</span>`);
-    // --- Live timer for in-progress task ---
+    // --- Streamlined timer/metrics layout ---
     let timerHtml = '';
-    if(inProgress && taskEntry?.startedAt){
-      timerHtml = `<span class=\"task-metric\"><span class=\"task-timer\" data-id=\"${task.id}\">00:00</span> <button class=\"timer-btn\" data-id=\"${task.id}\">${pausedTaskId===task.id?'Resume':'Pause'}</button></span>`;
+    if (inProgress && taskEntry?.startedAt) {
+      timerHtml = `<span class=\"task-metric timer-row\"><span class=\"label est-label\">Est</span> <span class=\"task-timer\" data-id=\"${task.id}\">00:00</span> <button class=\"timer-btn\" data-id=\"${task.id}\" aria-label=\"Pause\"><span class=\"icon-pause\"></span></button></span>`;
       setTimeout(()=>startActiveTaskTimer(task.id, taskEntry.startedAt), 0);
     } else if (taskEntry?.pausedAt) {
-      timerHtml = `<span class=\"task-metric\"><span class=\"task-timer\" data-id=\"${task.id}\">${formatMMSS(pausedElapsed)}</span> <button class=\"timer-btn\" data-id=\"${task.id}\">Resume</button></span>`;
+      timerHtml = `<span class=\"task-metric timer-row\"><span class=\"label est-label\">Est</span> <span class=\"task-timer\" data-id=\"${task.id}\">${formatMMSS(pausedElapsed)}</span> <button class=\"timer-btn\" data-id=\"${task.id}\" aria-label=\"Resume\"><span class=\"icon-play\"></span></button></span>`;
     }
-    if(timerHtml) metrics.push(timerHtml);
-    if(inProgress&&Number.isFinite(est)&&taskEntry?.startedAt){
+    let leftOverHtml = '';
+    if (inProgress && Number.isFinite(est) && taskEntry?.startedAt) {
       const elapsed = Math.floor((Date.now()-new Date(taskEntry.startedAt))/60000);
       const remaining = est-elapsed;
-      if(remaining>=0)metrics.push(`<span class=\"task-metric remaining\">Left ${formatMins(remaining)}</span>`);
-      else metrics.push(`<span class=\"task-metric overrun\">Over ${formatMins(Math.abs(remaining))}</span>`);
+      if (remaining >= 0) leftOverHtml = `<span class=\"task-metric remaining label\">Left <span class=\"left-num\">${remaining}</span></span>`;
+      else leftOverHtml = `<span class=\"task-metric overrun label\">Overrun <span class=\"overrun-num\">${Math.abs(remaining)}</span></span>`;
     }
-    if(overrun)metrics.push('<span class=\"task-metric overrun\">Overrun</span>');
-    row.innerHTML=`
+    row.innerHTML = `
       <div class=\"custom-task-meta\">
         <div class=\"checkbox\">${done?'✓':''}</div>
         <div class=\"task-body\">
           <div class=\"task-header\"><div class=\"task-title\">${safeTitle}</div>${tagHtml}</div>
           <div class=\"task-desc\">${done?'Completed.':(inProgress?'In progress.':'Ready to start.')}</div>
-          ${metrics.length?`<div class=\"task-metrics\">${metrics.join('')}</div>`:''}
+          <div class=\"task-metrics streamlined\">${timerHtml}${leftOverHtml}</div>
         </div>
       </div>
-      ${done ? '<button type=\"button\" class=\"custom-task-select\" disabled>Completed</button>' : (inProgress ? `<button type=\"button\" class=\"custom-task-select\" onclick=\"completeTask(\'${task.id}\')\">Complete</button>` : `<button type=\"button\" class=\"custom-task-select\" onclick=\"openEstimateModal(\'${task.id}\')\">Start Task</button>`)}
-      <button type=\"button\" class=\"custom-task-delete\" onclick=\"deleteCustomTask(\'${task.id}\')\">Delete</button>
+      ${done ? '<button type=\"button\" class=\"custom-task-select\" disabled>Completed</button>' : (inProgress ? `<button type=\"button\" class=\"custom-task-select\" onclick=\"completeTask(\\'${task.id}\\')\">Complete</button>` : `<button type=\"button\" class=\"custom-task-select\" onclick=\"openEstimateModal(\\'${task.id}\\')\">Start Task</button>`)}
+      <button type=\"button\" class=\"custom-task-delete\" onclick=\"deleteCustomTask(\\'${task.id}\\')\">Delete</button>
     `;
     customWrap.appendChild(row);
   });

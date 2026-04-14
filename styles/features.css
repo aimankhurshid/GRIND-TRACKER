@@ -1,8 +1,8 @@
 /* Minimal task timer styling */
-.task-metric .task-timer {
+.task-metric .task-timer, .task-timer {
   font-family: 'DM Mono', monospace;
-  font-size: 13px;
-  font-weight: 600;
+  font-size: 15px;
+  font-weight: 700;
   color: #e0e0e0;
   background: none;
   border-radius: 0;
@@ -12,8 +12,69 @@
   letter-spacing: 0.2px;
   box-shadow: none;
   display: inline-block;
-  min-width: 32px;
+  min-width: 38px;
   text-align: right;
+}
+.timer-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 0;
+}
+.task-metrics.streamlined {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  margin-top: 2px;
+}
+.label {
+  font-family: 'DM Mono', monospace;
+  font-size: 11px;
+  font-weight: 400;
+  color: #b0b0b0;
+  letter-spacing: 0.1px;
+  margin-right: 2px;
+}
+.est-label {
+  color: #b0b0b0;
+}
+.left-num {
+  color: #8ad79d;
+  font-weight: 600;
+  font-size: 13px;
+  margin-left: 2px;
+}
+.overrun-num {
+  color: #f0e040;
+  font-weight: 600;
+  font-size: 13px;
+  margin-left: 2px;
+  opacity: 0.8;
+}
+.overrun.label {
+  color: #f0e040;
+  opacity: 0.7;
+}
+.timer-btn {
+  background: none;
+  border: none;
+  padding: 0 4px;
+  margin-left: 0;
+  cursor: pointer;
+  outline: none;
+  display: flex;
+  align-items: center;
+}
+.timer-btn .icon-pause, .timer-btn .icon-play {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+}
+.timer-btn .icon-pause {
+  background: url('data:image/svg+xml;utf8,<svg width="16" height="16" fill="none" stroke="%23b6e36b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 16 16"><rect x="4" y="3" width="2.5" height="10"/><rect x="9.5" y="3" width="2.5" height="10"/></svg>') center/contain no-repeat;
+}
+.timer-btn .icon-play {
+  background: url('data:image/svg+xml;utf8,<svg width="16" height="16" fill="none" stroke="%23b6e36b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 16 16"><polygon points="5,3 13,8 5,13"/></svg>') center/contain no-repeat;
 }
 .timer-btn {
   font-family: 'DM Mono', monospace;
