@@ -1,8 +1,106 @@
-/* Minimal task timer styling */
-.task-metric .task-timer, .task-timer {
+.focus-lock-link {
   font-family: 'DM Mono', monospace;
-  font-size: 15px;
-  font-weight: 700;
+  font-size: 11px;
+  color: #b6b6b6;
+  text-decoration: underline dotted;
+  cursor: pointer;
+  opacity: 0.7;
+  margin-left: 2px;
+  transition: color 0.15s, opacity 0.15s;
+}
+.focus-lock-link:hover, .focus-lock-link:focus {
+  color: #f0e040;
+  opacity: 1;
+}
+/* --- Next Action Preview (Minimal Active Task Preview) --- */
+.next-action-preview {
+  padding: 10px 0 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  animation: fadeIn 0.3s;
+}
+.next-task-title {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 1.1em;
+  font-weight: 600;
+  color: #f0e040;
+  margin-bottom: 2px;
+}
+.next-task-meta {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-family: 'DM Mono', monospace;
+  font-size: 12px;
+  color: #b6b6b6;
+}
+.next-task-est {
+  color: #b6e36b;
+  font-weight: 500;
+}
+.next-task-timer {
+  color: #e0e0e0;
+  font-weight: 600;
+  font-size: 1.1em;
+  background: none;
+  padding: 0 4px;
+  min-width: 38px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.next-task-notes {
+  font-family: 'DM Mono', monospace;
+  font-size: 11px;
+  color: #b6b6b6;
+  background: #181818;
+  border-radius: 6px;
+  padding: 6px 10px;
+  margin-top: 2px;
+}
+.next-task-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 2px;
+}
+.icon-btn {
+  background: none;
+  border: none;
+  color: #b6e36b;
+  font-size: 1.2em;
+  cursor: pointer;
+  padding: 2px 8px;
+  border-radius: 4px;
+  transition: background 0.15s, color 0.15s;
+}
+.icon-btn:hover, .icon-btn:focus {
+  background: #232323;
+  color: #f0e040;
+}
+.next-task-progress {
+  margin-top: 2px;
+}
+.next-task-progress .progress-bar-wrap {
+  background: #232323;
+  border-radius: 4px;
+  height: 6px;
+  overflow: hidden;
+}
+.next-task-progress .progress-bar {
+  background: #b6e36b;
+  height: 100%;
+  border-radius: 4px;
+  transition: width 0.3s;
+}
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+/* Minimal task timer styling */
+.task-metric .task-timer {
+  font-family: 'DM Mono', monospace;
+  font-size: 13px;
+  font-weight: 600;
   color: #e0e0e0;
   background: none;
   border-radius: 0;
@@ -12,69 +110,8 @@
   letter-spacing: 0.2px;
   box-shadow: none;
   display: inline-block;
-  min-width: 38px;
+  min-width: 32px;
   text-align: right;
-}
-.timer-row {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  margin-bottom: 0;
-}
-.task-metrics.streamlined {
-  display: flex;
-  flex-direction: column;
-  gap: 0;
-  margin-top: 2px;
-}
-.label {
-  font-family: 'DM Mono', monospace;
-  font-size: 11px;
-  font-weight: 400;
-  color: #b0b0b0;
-  letter-spacing: 0.1px;
-  margin-right: 2px;
-}
-.est-label {
-  color: #b0b0b0;
-}
-.left-num {
-  color: #8ad79d;
-  font-weight: 600;
-  font-size: 13px;
-  margin-left: 2px;
-}
-.overrun-num {
-  color: #f0e040;
-  font-weight: 600;
-  font-size: 13px;
-  margin-left: 2px;
-  opacity: 0.8;
-}
-.overrun.label {
-  color: #f0e040;
-  opacity: 0.7;
-}
-.timer-btn {
-  background: none;
-  border: none;
-  padding: 0 4px;
-  margin-left: 0;
-  cursor: pointer;
-  outline: none;
-  display: flex;
-  align-items: center;
-}
-.timer-btn .icon-pause, .timer-btn .icon-play {
-  display: inline-block;
-  width: 16px;
-  height: 16px;
-}
-.timer-btn .icon-pause {
-  background: url('data:image/svg+xml;utf8,<svg width="16" height="16" fill="none" stroke="%23b6e36b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 16 16"><rect x="4" y="3" width="2.5" height="10"/><rect x="9.5" y="3" width="2.5" height="10"/></svg>') center/contain no-repeat;
-}
-.timer-btn .icon-play {
-  background: url('data:image/svg+xml;utf8,<svg width="16" height="16" fill="none" stroke="%23b6e36b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 16 16"><polygon points="5,3 13,8 5,13"/></svg>') center/contain no-repeat;
 }
 .timer-btn {
   font-family: 'DM Mono', monospace;

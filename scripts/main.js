@@ -1,4 +1,238 @@
+// --- Render Dynamic Subjects/Exams Tile ---
+function renderDynamicSubjects() {
+  const card = document.getElementById('subjectCard');
+  if (!card) return;
+  // Remove all except the add button row
+  // Find the add button row (should always exist)
+  let addBtnRow = card.querySelector('.subject-row #addExamBtn')?.parentElement;
+  // If not found, create it (robustness)
+  if (!addBtnRow) {
+    addBtnRow = document.createElement('div');
+    addBtnRow.className = 'subject-row';
+    addBtnRow.innerHTML = '<button class="tiny-btn primary" id="addExamBtn">+ Add Exam/Subject</button>';
+    card.appendChild(addBtnRow);
+  }
+  // Remove all subject rows except the add button row
+  card.querySelectorAll('.subject-row').forEach(row => {
+    if (row !== addBtnRow) row.remove();
+  });
+  let subjects = [];
+  try { subjects = JSON.parse(localStorage.getItem('cse_subjects') || '[]'); } catch { subjects = []; }
+  if (subjects.length && addBtnRow) {
+    subjects.forEach(subj => {
+      const row = document.createElement('div');
+      row.className = 'subject-row';
+      row.innerHTML = `<div class="subject-top"><div class="subject-name">${subj.name}</div><div class="subject-pct">0%</div></div><div class="subject-bar-wrap"><div class="subject-bar" style="width:0%"></div></div>`;
+      card.insertBefore(row, addBtnRow);
+    });
+  }
+  // Always re-attach the event handler for the Add Exam/Subject button
+  const addExamBtn = document.getElementById('addExamBtn');
+  if (addExamBtn) {
+    addExamBtn.onclick = () => {
+      document.getElementById('examSubjectName').value = '';
+      document.getElementById('examDate').value = '';
+      document.getElementById('examSyllabus').value = '';
+      document.getElementById('addExamStatus').textContent = '';
+      const addExamModal = document.getElementById('addExamModal');
+      if (addExamModal) {
+        addExamModal.style.display = 'flex';
+        // Always re-attach the Save & Auto-Plan handler
+        const saveAddExamBtn = document.getElementById('saveAddExamBtn');
+        if (saveAddExamBtn) {
+          saveAddExamBtn.onclick = () => {
+            const name = document.getElementById('examSubjectName').value.trim();
+            const date = document.getElementById('examDate').value;
+            const syllabus = document.getElementById('examSyllabus').value.trim();
+            const status = document.getElementById('addExamStatus');
+            if (!name || !date) {
+              status.textContent = 'Name and date required.';
+              return;
+            }
+            const dateObj = new Date(date);
+            if (isNaN(dateObj.getTime())) {
+              status.textContent = 'Invalid date format. Use yyyy-mm-dd.';
+              return;
+            }
+            const todayObj = new Date();
+            todayObj.setHours(0,0,0,0);
+            if (dateObj < todayObj) {
+              status.textContent = 'Exam date must be today or in the future.';
+              return;
+            }
+            let subjects = [];
+            try { subjects = JSON.parse(localStorage.getItem('cse_subjects') || '[]'); } catch { subjects = []; }
+            const id = 'subj_' + Date.now().toString(36) + Math.random().toString(36).slice(2,6);
+            subjects.push({ id, name, date, syllabus });
+            localStorage.setItem('cse_subjects', JSON.stringify(subjects));
+            const today = new Date().toISOString().split('T')[0];
+            const daysLeft = Math.max(1, Math.ceil((dateObj - new Date(today)) / 86400000) + 1);
+            let topics = syllabus ? syllabus.split(',').map(s => s.trim()).filter(Boolean) : [];
+            if (!topics.length) topics = Array.from({length: daysLeft}, (_,i) => `${name} Study Day ${i+1}/${daysLeft}`);
+            else if (topics.length < daysLeft) {
+              const repeat = Math.ceil(daysLeft / topics.length);
+              topics = Array.from({length: daysLeft}, (_,i) => topics[Math.floor(i/repeat)] + ` (${name} Day ${i+1}/${daysLeft})`);
+            } else if (topics.length > daysLeft) {
+              topics = topics.slice(0, daysLeft);
+            }
+            let allTasks = {};
+            try { allTasks = JSON.parse(localStorage.getItem('cse_custom_tasks') || '{}'); } catch { allTasks = {}; }
+            for (let i = 0; i < daysLeft; ++i) {
+              const d = new Date(new Date(today).getTime() + i*86400000).toISOString().split('T')[0];
+              if (!allTasks[d]) allTasks[d] = [];
+              if (!allTasks[d].some(t => t.text && t.text.includes(name))) {
+                allTasks[d].push({ id: id + '_' + d, text: topics[i], subjectId: id });
+              }
+            }
+            localStorage.setItem('cse_custom_tasks', JSON.stringify(allTasks));
+            addExamModal.style.display = 'none';
+            renderTasks && renderTasks();
+            renderDynamicSubjects && renderDynamicSubjects();
+            status.textContent = '';
+          };
+        }
+      }
+    };
+  }
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  renderDynamicSubjects();
+  // Modal: close on overlay click (but not on card click)
+  const addExamModal = document.getElementById('addExamModal');
+  const addExamBtn = document.getElementById('addExamBtn');
+  const cancelAddExamBtn = document.getElementById('cancelAddExamBtn');
+  const saveAddExamBtn = document.getElementById('saveAddExamBtn');
+  if (addExamModal) {
+    addExamModal.addEventListener('mousedown', function(e) {
+      if (e.target === addExamModal) {
+        addExamModal.style.display = 'none';
+      }
+    });
+  }
+  if (addExamBtn) addExamBtn.onclick = () => {
+    document.getElementById('examSubjectName').value = '';
+    document.getElementById('examDate').value = '';
+    document.getElementById('examSyllabus').value = '';
+    document.getElementById('addExamStatus').textContent = '';
+    addExamModal.style.display = 'flex';
+  };
+  if (cancelAddExamBtn) cancelAddExamBtn.onclick = () => {
+    addExamModal.style.display = 'none';
+  };
+  if (saveAddExamBtn) saveAddExamBtn.onclick = () => {
+    const name = document.getElementById('examSubjectName').value.trim();
+    const date = document.getElementById('examDate').value;
+    const syllabus = document.getElementById('examSyllabus').value.trim();
+    const status = document.getElementById('addExamStatus');
+    // Validate date format (yyyy-mm-dd)
+    if (!name || !date) {
+      status.textContent = 'Name and date required.';
+      return;
+    }
+    // Check if date is valid and in the future
+    const dateObj = new Date(date);
+    if (isNaN(dateObj.getTime())) {
+      status.textContent = 'Invalid date format. Use yyyy-mm-dd.';
+      return;
+    }
+    const todayObj = new Date();
+    todayObj.setHours(0,0,0,0);
+    if (dateObj < todayObj) {
+      status.textContent = 'Exam date must be today or in the future.';
+      return;
+    }
+    // Save subject/exam info
+    let subjects = [];
+    try { subjects = JSON.parse(localStorage.getItem('cse_subjects') || '[]'); } catch { subjects = []; }
+    const id = 'subj_' + Date.now().toString(36) + Math.random().toString(36).slice(2,6);
+    subjects.push({ id, name, date, syllabus });
+    localStorage.setItem('cse_subjects', JSON.stringify(subjects));
+    // Auto-generate daily study tasks
+    const today = new Date().toISOString().split('T')[0];
+    const daysLeft = Math.max(1, Math.ceil((dateObj - new Date(today)) / 86400000) + 1);
+    let topics = syllabus ? syllabus.split(',').map(s => s.trim()).filter(Boolean) : [];
+    if (!topics.length) topics = Array.from({length: daysLeft}, (_,i) => `${name} Study Day ${i+1}/${daysLeft}`);
+    else if (topics.length < daysLeft) {
+      // Spread topics over days
+      const repeat = Math.ceil(daysLeft / topics.length);
+      topics = Array.from({length: daysLeft}, (_,i) => topics[Math.floor(i/repeat)] + ` (${name} Day ${i+1}/${daysLeft})`);
+    } else if (topics.length > daysLeft) {
+      topics = topics.slice(0, daysLeft);
+    }
+    // Add a custom task for each day
+    let allTasks = {};
+    try { allTasks = JSON.parse(localStorage.getItem('cse_custom_tasks') || '{}'); } catch { allTasks = {}; }
+    for (let i = 0; i < daysLeft; ++i) {
+      const d = new Date(new Date(today).getTime() + i*86400000).toISOString().split('T')[0];
+      if (!allTasks[d]) allTasks[d] = [];
+      // Avoid duplicate for same subject on same day
+      if (!allTasks[d].some(t => t.text && t.text.includes(name))) {
+        allTasks[d].push({ id: id + '_' + d, text: topics[i], subjectId: id });
+      }
+    }
+    localStorage.setItem('cse_custom_tasks', JSON.stringify(allTasks));
+    addExamModal.style.display = 'none';
+    renderTasks && renderTasks();
+    renderDynamicSubjects && renderDynamicSubjects();
+    status.textContent = '';
+  };
+});
 // --- Live mm:ss timer for active task ---
+// --- Next Action Preview (Minimal Active Task Preview) ---
+let nextActionTimer = null;
+function showNextActionPreview(task) {
+  const preview = document.getElementById('nextActionPreview');
+  if (!preview || !task) return;
+  document.getElementById('nextActionText').style.display = 'none';
+  preview.style.display = '';
+  document.getElementById('nextTaskTitle').textContent = task.text || 'Untitled Task';
+  const est = task.estimatedMinutes ? `Est: ${task.estimatedMinutes} min` : '';
+  document.getElementById('nextTaskEst').textContent = est;
+  // Timer
+  const timerEl = document.getElementById('nextTaskTimer');
+  let startedAt = task.startedAt ? new Date(task.startedAt) : null;
+  function updateTimer() {
+    if (!startedAt) { timerEl.textContent = '--:--'; return; }
+    const elapsed = Math.floor((Date.now() - startedAt.getTime()) / 1000);
+    timerEl.textContent = formatMMSS(elapsed);
+    // Progress bar
+    if (task.estimatedMinutes) {
+      const pct = Math.min(100, (elapsed / 60) / task.estimatedMinutes * 100);
+      document.getElementById('nextTaskProgressBar').style.width = pct + '%';
+      document.getElementById('nextTaskProgress').style.display = '';
+    } else {
+      document.getElementById('nextTaskProgress').style.display = 'none';
+    }
+  }
+  if (nextActionTimer) clearInterval(nextActionTimer);
+  updateTimer();
+  nextActionTimer = setInterval(updateTimer, 1000);
+  // Notes
+  const notes = task.notes || '';
+  const notesEl = document.getElementById('nextTaskNotes');
+  if (notes) {
+    notesEl.textContent = notes;
+    notesEl.style.display = '';
+  } else {
+    notesEl.style.display = 'none';
+  }
+  // Action buttons
+  document.getElementById('nextTaskPauseBtn').style.display = task.startedAt ? '' : 'none';
+  document.getElementById('nextTaskCompleteBtn').style.display = task.startedAt ? '' : 'none';
+  document.getElementById('nextTaskEditBtn').style.display = '';
+  // Button handlers
+  document.getElementById('nextTaskPauseBtn').onclick = function() { handlePauseResume(task.id); };
+  document.getElementById('nextTaskCompleteBtn').onclick = function() { completeTask(task.id); };
+  document.getElementById('nextTaskEditBtn').onclick = function() { openEditTaskModal(task.id); };
+}
+function hideNextActionPreview() {
+  const preview = document.getElementById('nextActionPreview');
+  if (!preview) return;
+  preview.style.display = 'none';
+  document.getElementById('nextActionText').style.display = '';
+  if (nextActionTimer) clearInterval(nextActionTimer);
+}
 let activeTaskTimer = null;
 let pausedTaskId = null;
 let pausedElapsed = 0;
@@ -34,6 +268,7 @@ function clearActiveTaskTimer() {
 const origRenderTasks = renderTasks;
 renderTasks = function() {
   clearActiveTaskTimer();
+  hideNextActionPreview();
   const ts=loadState()[getToday()]||{};
   const customWrap=document.getElementById('customTaskList');
   if(!customWrap)return;
@@ -66,36 +301,73 @@ renderTasks = function() {
     const row=document.createElement('div');
     row.className='task custom-task-item'+(done?' done':'')+(String(task.id)===firstPendingId?' task-next':'');
     row.setAttribute('data-id',task.id);
+    // Add click-to-preview for all tasks
+    row.onclick = function(e) {
+      // Prevent click on buttons from triggering preview
+      if (e.target.closest('button')) return;
+      showNextActionPreview({
+        id: task.id,
+        text: task.text,
+        estimatedMinutes: getTaskEstimatedMinutes(taskEntry),
+        notes: task.notes || '',
+        startedAt: inProgress ? taskEntry.startedAt : null
+      });
+    };
+    // If this is the next actionable task, show in preview by default
+    if (!done && !inProgress && String(task.id) === firstPendingId) {
+      showNextActionPreview({
+        id: task.id,
+        text: task.text,
+        estimatedMinutes: getTaskEstimatedMinutes(taskEntry),
+        notes: task.notes || '',
+        startedAt: null
+      });
+    } else if (inProgress) {
+      showNextActionPreview({
+        id: task.id,
+        text: task.text,
+        estimatedMinutes: getTaskEstimatedMinutes(taskEntry),
+        notes: task.notes || '',
+        startedAt: taskEntry.startedAt
+      });
+    }
     const safeTitle=(task.text||'').replaceAll('<','&lt;').replaceAll('>','&gt;');
     const isDaily=!!task.recurringTemplateId;
     const tagHtml = isDaily ? '<div class="task-tag tag-daily">Daily</div>' : '';
     let metrics=[];
-    // --- Streamlined timer/metrics layout ---
-    let timerHtml = '';
-    if (inProgress && taskEntry?.startedAt) {
-      timerHtml = `<span class=\"task-metric timer-row\"><span class=\"label est-label\">Est</span> <span class=\"task-timer\" data-id=\"${task.id}\">00:00</span> <button class=\"timer-btn\" data-id=\"${task.id}\" aria-label=\"Pause\"><span class=\"icon-pause\"></span></button></span>`;
-      setTimeout(()=>startActiveTaskTimer(task.id, taskEntry.startedAt), 0);
-    } else if (taskEntry?.pausedAt) {
-      timerHtml = `<span class=\"task-metric timer-row\"><span class=\"label est-label\">Est</span> <span class=\"task-timer\" data-id=\"${task.id}\">${formatMMSS(pausedElapsed)}</span> <button class=\"timer-btn\" data-id=\"${task.id}\" aria-label=\"Resume\"><span class=\"icon-play\"></span></button></span>`;
+    // Only show timings if NOT the next actionable or in-progress task (i.e., not shown in preview)
+    const isPreviewed = (!done && !inProgress && String(task.id) === firstPendingId) || inProgress;
+    if (!isPreviewed) {
+      if(Number.isFinite(est))metrics.push(`<span class=\"task-metric\">Est ${formatMins(est)}</span>`);
+      if(done&&Number.isFinite(actual))metrics.push(`<span class=\"task-metric\">Actual ${formatMins(actual)}</span>`);
+      // --- Live timer for in-progress task ---
+      let timerHtml = '';
+      if(inProgress && taskEntry?.startedAt){
+        timerHtml = `<span class=\"task-metric\"><span class=\"task-timer\" data-id=\"${task.id}\">00:00</span> <button class=\"timer-btn\" data-id=\"${task.id}\">${pausedTaskId===task.id?'Resume':'Pause'}</button></span>`;
+        setTimeout(()=>startActiveTaskTimer(task.id, taskEntry.startedAt), 0);
+      } else if (taskEntry?.pausedAt) {
+        timerHtml = `<span class=\"task-metric\"><span class=\"task-timer\" data-id=\"${task.id}\">${formatMMSS(pausedElapsed)}</span> <button class=\"timer-btn\" data-id=\"${task.id}\">Resume</button></span>`;
+      }
+      if(timerHtml) metrics.push(timerHtml);
+      if(inProgress&&Number.isFinite(est)&&taskEntry?.startedAt){
+        const elapsed = Math.floor((Date.now()-new Date(taskEntry.startedAt))/60000);
+        const remaining = est-elapsed;
+        if(remaining>=0)metrics.push(`<span class=\"task-metric remaining\">Left ${formatMins(remaining)}</span>`);
+        else metrics.push(`<span class=\"task-metric overrun\">Over ${formatMins(Math.abs(remaining))}</span>`);
+      }
+      if(overrun)metrics.push('<span class=\"task-metric overrun\">Overrun</span>');
     }
-    let leftOverHtml = '';
-    if (inProgress && Number.isFinite(est) && taskEntry?.startedAt) {
-      const elapsed = Math.floor((Date.now()-new Date(taskEntry.startedAt))/60000);
-      const remaining = est-elapsed;
-      if (remaining >= 0) leftOverHtml = `<span class=\"task-metric remaining label\">Left <span class=\"left-num\">${remaining}</span></span>`;
-      else leftOverHtml = `<span class=\"task-metric overrun label\">Overrun <span class=\"overrun-num\">${Math.abs(remaining)}</span></span>`;
-    }
-    row.innerHTML = `
+    row.innerHTML=`
       <div class=\"custom-task-meta\">
         <div class=\"checkbox\">${done?'✓':''}</div>
         <div class=\"task-body\">
           <div class=\"task-header\"><div class=\"task-title\">${safeTitle}</div>${tagHtml}</div>
           <div class=\"task-desc\">${done?'Completed.':(inProgress?'In progress.':'Ready to start.')}</div>
-          <div class=\"task-metrics streamlined\">${timerHtml}${leftOverHtml}</div>
+          ${metrics.length?`<div class=\"task-metrics\">${metrics.join('')}</div>`:''}
         </div>
       </div>
-      ${done ? '<button type=\"button\" class=\"custom-task-select\" disabled>Completed</button>' : (inProgress ? `<button type=\"button\" class=\"custom-task-select\" onclick=\"completeTask(\\'${task.id}\\')\">Complete</button>` : `<button type=\"button\" class=\"custom-task-select\" onclick=\"openEstimateModal(\\'${task.id}\\')\">Start Task</button>`)}
-      <button type=\"button\" class=\"custom-task-delete\" onclick=\"deleteCustomTask(\\'${task.id}\\')\">Delete</button>
+      ${done ? '<button type=\"button\" class=\"custom-task-select\" disabled>Completed</button>' : (inProgress ? `<button type=\"button\" class=\"custom-task-select\" onclick=\"completeTask(\'${task.id}\')\">Complete</button>` : `<button type=\"button\" class=\"custom-task-select\" onclick=\"openEstimateModal(\'${task.id}\')\">Start Task</button>`)}
+      <button type=\"button\" class=\"custom-task-delete\" onclick=\"deleteCustomTask(\'${task.id}\')\">Delete</button>
     `;
     customWrap.appendChild(row);
   });
@@ -1033,9 +1305,15 @@ const TASKS_KEY='cse_tasks', STREAK_KEY='cse_streak', LAST_DATE_KEY='cse_last_da
     let effectiveDate=targetDate;
     let list=all[effectiveDate]||[];
     if(list.length>=DAILY_TASK_CAP){
-      while(list.length>=DAILY_TASK_CAP){
+      let safety = 0;
+      while(list.length>=DAILY_TASK_CAP && safety < 365){
         effectiveDate=addDaysToDateStr(effectiveDate,1);
         list=all[effectiveDate]||[];
+        safety++;
+      }
+      if (safety >= 365) {
+        setTaskAddStatus('Could not find a free day for this task within a year.','warn');
+        return;
       }
       setTaskAddStatus(`Daily cap reached (${DAILY_TASK_CAP}). Task moved to ${effectiveDate}.`,'warn');
     }else{

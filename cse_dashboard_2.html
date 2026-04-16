@@ -16,7 +16,7 @@
 <body>
 
 <!-- SLAP SCREEN -->
-<div id="slapScreen">
+<div id="slapScreen" style="display:none;">
   <span class="slap-emoji">🚨</span>
   <div class="slap-headline" id="slapHeadline">WAKE UP.<br>DO YOUR TASKS.</div>
   <div class="slap-quote" id="slapQuote"></div>
@@ -214,13 +214,34 @@
 
   <!-- NEXT ACTION WIDGET -->
   <div class="tile tile-next">
-    <div class="section-title">🚀 What To Do Next</div>
+    <div class="section-title">What To Do Next</div>
     <div class="next-action-card" id="nextActionCard">
-      <div class="next-action-text" id="nextActionText">Loading your next step...</div>
-      <button class="next-action-btn" id="nextActionBtn" onclick="doNextAction()">Do This Now</button>
-        <div class="next-action-lock">
-          <label><input type="checkbox" id="focusLockToggle"> Focus Lock: Hide all except this step</label>
+      <div class="next-action-preview" id="nextActionPreview" style="display:none">
+        <div class="next-task-title" id="nextTaskTitle">Task Title</div>
+        <div class="next-task-meta">
+          <span class="next-task-est" id="nextTaskEst">Est: 25 min</span>
+          <span class="next-task-timer" id="nextTaskTimer">00:00</span>
         </div>
+        <div class="next-task-notes" id="nextTaskNotes" style="display:none">Notes or subtasks here</div>
+        <div class="next-task-actions">
+          <button class="icon-btn" id="nextTaskPauseBtn" title="Pause/Resume" style="display:none">
+            <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg>
+          </button>
+          <button class="icon-btn" id="nextTaskCompleteBtn" title="Complete" style="display:none">
+            <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M5 12l5 5l10 -10" /></svg>
+          </button>
+          <button class="icon-btn" id="nextTaskEditBtn" title="Edit" style="display:none">
+            <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M16 3l4 4l-14 14h-4v-4z" /><path d="M13 6l4 4" /></svg>
+          </button>
+        </div>
+        <div class="next-task-progress" id="nextTaskProgress" style="display:none">
+          <div class="progress-bar-wrap"><div class="progress-bar" id="nextTaskProgressBar" style="width:0%"></div></div>
+        </div>
+      </div>
+      <div class="next-action-text" id="nextActionText">Loading your next step...</div>
+      <div class="next-action-lock">
+        <a href="#" id="focusLockToggle" class="focus-lock-link" title="Hide all except this step" tabindex="0">Focus Lock</a>
+      </div>
     </div>
   </div>
 
@@ -286,25 +307,38 @@
   <!-- SUBJECT TRACKER -->
   <div class="tile tile-subjects">
     <div class="section-title">📚 Subject Progress — tap bar to update</div>
-    <div class="subject-card">
-    <div class="subject-row">
-      <div class="subject-top"><div class="subject-name">DBMS</div><div class="subject-pct" id="pct-dbms">0%</div></div>
-      <div class="subject-bar-wrap" id="wrap-dbms"><div class="subject-bar bar-dbms" id="bar-dbms" style="width:0%"></div></div>
-    </div>
-    <div class="subject-row">
-      <div class="subject-top"><div class="subject-name">Operating Systems</div><div class="subject-pct" id="pct-os">0%</div></div>
-      <div class="subject-bar-wrap" id="wrap-os"><div class="subject-bar bar-os" id="bar-os" style="width:0%"></div></div>
-    </div>
-    <div class="subject-row">
-      <div class="subject-top"><div class="subject-name">Computer Networks</div><div class="subject-pct" id="pct-cn">0%</div></div>
-      <div class="subject-bar-wrap" id="wrap-cn"><div class="subject-bar bar-cn" id="bar-cn" style="width:0%"></div></div>
-    </div>
-    <div class="subject-row">
-      <div class="subject-top"><div class="subject-name">DSA / LeetCode</div><div class="subject-pct" id="pct-dsa">0%</div></div>
-      <div class="subject-bar-wrap" id="wrap-dsa"><div class="subject-bar bar-dsa" id="bar-dsa" style="width:0%"></div></div>
-    </div>
+    <div class="subject-card" id="subjectCard">
+      <!-- Subjects will be rendered here dynamically -->
+      <div class="subject-row">
+        <button class="tiny-btn primary" id="addExamBtn">+ Add Exam/Subject</button>
+      </div>
     </div>
   </div>
+
+<!-- Add Exam/Subject Modal Popup Overlay -->
+<div id="addExamModal" class="em-overlay" style="display:none; position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,0.7); z-index:1000; align-items:center; justify-content:center;">
+  <div class="em-card" role="dialog" aria-modal="true" aria-labelledby="addExamTitle" style="margin:auto; min-width:320px; max-width:95vw; box-shadow:0 8px 32px #000a;">
+    <div class="em-title" id="addExamTitle">Add Exam/Subject</div>
+    <div class="em-divider"></div>
+    <div class="em-field">
+      <label for="examSubjectName">Subject/Exam Name</label>
+      <input id="examSubjectName" type="text" maxlength="60" placeholder="e.g. DBMS, GATE, CAT...">
+    </div>
+    <div class="em-field">
+      <label for="examDate">Exam Date</label>
+      <input id="examDate" type="date" pattern="\d{4}-\d{2}-\d{2}" placeholder="yyyy-mm-dd">
+    </div>
+    <div class="em-field">
+      <label for="examSyllabus">Syllabus/Topics (optional)</label>
+      <textarea id="examSyllabus" rows="2" maxlength="400" placeholder="Comma-separated topics or chapters..."></textarea>
+    </div>
+    <div class="em-actions">
+      <button type="button" class="tiny-btn" id="cancelAddExamBtn">Cancel</button>
+      <button type="button" class="tiny-btn primary" id="saveAddExamBtn">Save & Auto-Plan</button>
+    </div>
+    <div class="em-status" id="addExamStatus"></div>
+  </div>
+</div>
 
   <!-- DAILY REFLECTION -->
   <div class="tile tile-reflection">
