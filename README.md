@@ -35,11 +35,11 @@ python -m http.server 5500
 
 Now open:
 
-- http://127.0.0.1:5500/cse_dashboard_2.html
+- http://127.0.0.1:5500/
 
 ## Files
 
-- `cse_dashboard_2.html` – main dashboard UI and logic
+- `index.html` – main dashboard UI and logic
 - `sw.js` – service worker for PWA + notifications
 
 ## Status

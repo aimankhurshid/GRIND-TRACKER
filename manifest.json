@@ -1,7 +1,7 @@
 {
   "name": "Daily Mission",
   "short_name": "Mission",
-  "start_url": "./cse_dashboard_2.html",
+  "start_url": "./index.html",
   "display": "standalone",
   "background_color": "#0a0a0a",
   "theme_color": "#0a0a0a",

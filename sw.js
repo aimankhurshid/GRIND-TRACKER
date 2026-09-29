@@ -1,5 +1,5 @@
-const CACHE_NAME = 'daily-mission-v2';
-const ASSETS = ['/', './', './cse_dashboard_2.html', './sw.js'];
+const CACHE_NAME = 'daily-mission-v3';
+const ASSETS = ['/', './', './index.html', './sw.js'];
 
 self.addEventListener('install', event => {
   event.waitUntil(
@@ -26,7 +26,7 @@ self.addEventListener('fetch', event => {
         caches.open(CACHE_NAME).then(cache => cache.put(event.request, copy)).catch(() => {});
         return response;
       })
-      .catch(() => caches.match(event.request).then(r => r || caches.match('./cse_dashboard_2.html')))
+      .catch(() => caches.match(event.request).then(r => r || caches.match('./index.html')))
   );
 });
 
@@ -35,7 +35,7 @@ self.addEventListener('notificationclick', event => {
   event.waitUntil(
     self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(clients => {
       if (clients && clients.length) return clients[0].focus();
-      return self.clients.openWindow('./cse_dashboard_2.html');
+      return self.clients.openWindow('./index.html');
     })
   );
 });

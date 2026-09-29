@@ -10,6 +10,7 @@ node_modules/
 npm-debug.log*
 yarn.lock
 pnpm-lock.yaml
+.playwright-cli/
 
 # Build artifacts
 /dist/

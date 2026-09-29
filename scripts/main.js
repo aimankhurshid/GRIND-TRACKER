@@ -19,10 +19,35 @@ function renderDynamicSubjects() {
   let subjects = [];
   try { subjects = JSON.parse(localStorage.getItem('cse_subjects') || '[]'); } catch { subjects = []; }
   if (subjects.length && addBtnRow) {
-    subjects.forEach(subj => {
+    subjects.forEach((subj, index) => {
+      const progress = Math.max(0, Math.min(100, Number(subj.progress) || 0));
       const row = document.createElement('div');
       row.className = 'subject-row';
-      row.innerHTML = `<div class="subject-top"><div class="subject-name">${subj.name}</div><div class="subject-pct">0%</div></div><div class="subject-bar-wrap"><div class="subject-bar" style="width:0%"></div></div>`;
+      row.innerHTML = '<div class="subject-top"><div class="subject-name"></div><div class="subject-pct"></div></div><div class="subject-bar-wrap" role="slider" tabindex="0" aria-valuemin="0" aria-valuemax="100"><div class="subject-bar"></div></div>';
+      row.querySelector('.subject-name').textContent = subj.name;
+      row.querySelector('.subject-pct').textContent = `${progress}%`;
+      const barWrap = row.querySelector('.subject-bar-wrap');
+      const bar = row.querySelector('.subject-bar');
+      bar.style.width = `${progress}%`;
+      barWrap.setAttribute('aria-label', `${subj.name} progress`);
+      barWrap.setAttribute('aria-valuenow', String(progress));
+      const saveProgress = value => {
+        const next = Math.max(0, Math.min(100, Math.round(value / 5) * 5));
+        subjects[index] = { ...subjects[index], progress: next };
+        localStorage.setItem('cse_subjects', JSON.stringify(subjects));
+        renderDynamicSubjects();
+      };
+      barWrap.addEventListener('click', event => {
+        const rect = barWrap.getBoundingClientRect();
+        saveProgress(((event.clientX - rect.left) / rect.width) * 100);
+      });
+      barWrap.addEventListener('keydown', event => {
+        if (!['ArrowLeft', 'ArrowDown', 'ArrowRight', 'ArrowUp', 'Home', 'End'].includes(event.key)) return;
+        event.preventDefault();
+        if (event.key === 'Home') saveProgress(0);
+        else if (event.key === 'End') saveProgress(100);
+        else saveProgress(progress + (['ArrowRight', 'ArrowUp'].includes(event.key) ? 5 : -5));
+      });
       card.insertBefore(row, addBtnRow);
     });
   }
@@ -63,10 +88,10 @@ function renderDynamicSubjects() {
             let subjects = [];
             try { subjects = JSON.parse(localStorage.getItem('cse_subjects') || '[]'); } catch { subjects = []; }
             const id = 'subj_' + Date.now().toString(36) + Math.random().toString(36).slice(2,6);
-            subjects.push({ id, name, date, syllabus });
+            subjects.push({ id, name, date, syllabus, progress: 0 });
             localStorage.setItem('cse_subjects', JSON.stringify(subjects));
-            const today = new Date().toISOString().split('T')[0];
-            const daysLeft = Math.max(1, Math.ceil((dateObj - new Date(today)) / 86400000) + 1);
+            const today = getToday();
+            const daysLeft = Math.max(1, Math.ceil((new Date(`${date}T00:00:00`) - new Date(`${today}T00:00:00`)) / 86400000) + 1);
             let topics = syllabus ? syllabus.split(',').map(s => s.trim()).filter(Boolean) : [];
             if (!topics.length) topics = Array.from({length: daysLeft}, (_,i) => `${name} Study Day ${i+1}/${daysLeft}`);
             else if (topics.length < daysLeft) {
@@ -78,7 +103,7 @@ function renderDynamicSubjects() {
             let allTasks = {};
             try { allTasks = JSON.parse(localStorage.getItem('cse_custom_tasks') || '{}'); } catch { allTasks = {}; }
             for (let i = 0; i < daysLeft; ++i) {
-              const d = new Date(new Date(today).getTime() + i*86400000).toISOString().split('T')[0];
+              const d = addDaysToDateStr(today, i);
               if (!allTasks[d]) allTasks[d] = [];
               if (!allTasks[d].some(t => t.text && t.text.includes(name))) {
                 allTasks[d].push({ id: id + '_' + d, text: topics[i], subjectId: id });
@@ -87,6 +112,9 @@ function renderDynamicSubjects() {
             localStorage.setItem('cse_custom_tasks', JSON.stringify(allTasks));
             addExamModal.style.display = 'none';
             renderTasks && renderTasks();
+            renderProgress && renderProgress();
+            renderWeekView && renderWeekView();
+            renderDailyActionEngine && renderDailyActionEngine();
             renderDynamicSubjects && renderDynamicSubjects();
             status.textContent = '';
           };
@@ -146,11 +174,11 @@ document.addEventListener('DOMContentLoaded', () => {
     let subjects = [];
     try { subjects = JSON.parse(localStorage.getItem('cse_subjects') || '[]'); } catch { subjects = []; }
     const id = 'subj_' + Date.now().toString(36) + Math.random().toString(36).slice(2,6);
-    subjects.push({ id, name, date, syllabus });
+    subjects.push({ id, name, date, syllabus, progress: 0 });
     localStorage.setItem('cse_subjects', JSON.stringify(subjects));
     // Auto-generate daily study tasks
-    const today = new Date().toISOString().split('T')[0];
-    const daysLeft = Math.max(1, Math.ceil((dateObj - new Date(today)) / 86400000) + 1);
+    const today = getToday();
+    const daysLeft = Math.max(1, Math.ceil((new Date(`${date}T00:00:00`) - new Date(`${today}T00:00:00`)) / 86400000) + 1);
     let topics = syllabus ? syllabus.split(',').map(s => s.trim()).filter(Boolean) : [];
     if (!topics.length) topics = Array.from({length: daysLeft}, (_,i) => `${name} Study Day ${i+1}/${daysLeft}`);
     else if (topics.length < daysLeft) {
@@ -164,7 +192,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let allTasks = {};
     try { allTasks = JSON.parse(localStorage.getItem('cse_custom_tasks') || '{}'); } catch { allTasks = {}; }
     for (let i = 0; i < daysLeft; ++i) {
-      const d = new Date(new Date(today).getTime() + i*86400000).toISOString().split('T')[0];
+      const d = addDaysToDateStr(today, i);
       if (!allTasks[d]) allTasks[d] = [];
       // Avoid duplicate for same subject on same day
       if (!allTasks[d].some(t => t.text && t.text.includes(name))) {
@@ -174,6 +202,9 @@ document.addEventListener('DOMContentLoaded', () => {
     localStorage.setItem('cse_custom_tasks', JSON.stringify(allTasks));
     addExamModal.style.display = 'none';
     renderTasks && renderTasks();
+    renderProgress && renderProgress();
+    renderWeekView && renderWeekView();
+    renderDailyActionEngine && renderDailyActionEngine();
     renderDynamicSubjects && renderDynamicSubjects();
     status.textContent = '';
   };
@@ -517,7 +548,13 @@ const TASKS_KEY='cse_tasks', STREAK_KEY='cse_streak', LAST_DATE_KEY='cse_last_da
     'Study for Sem Exam'
   ];
 
-  function getToday() { return new Date().toISOString().split('T')[0]; }
+  function formatLocalDate(date){
+    const y=date.getFullYear();
+    const m=String(date.getMonth()+1).padStart(2,'0');
+    const d=String(date.getDate()).padStart(2,'0');
+    return `${y}-${m}-${d}`;
+  }
+  function getToday() { return formatLocalDate(new Date()); }
   function isTaskCompletedEntry(entry){
     if(entry===true)return true;
     if(entry&&typeof entry==='object')return entry.status==='completed';
@@ -545,7 +582,7 @@ const TASKS_KEY='cse_tasks', STREAK_KEY='cse_streak', LAST_DATE_KEY='cse_last_da
   function addDaysToDateStr(dateStr,days){
     const d=new Date(`${dateStr}T00:00:00`);
     d.setDate(d.getDate()+days);
-    return d.toISOString().split('T')[0];
+    return formatLocalDate(d);
   }
   function formatMins(mins){
     const n=parseInt(mins,10);
@@ -626,7 +663,7 @@ const TASKS_KEY='cse_tasks', STREAK_KEY='cse_streak', LAST_DATE_KEY='cse_last_da
     const cur=new Date(dateStr+'T00:00:00');
     while(true){
       cur.setDate(cur.getDate()-1);
-      const prev=cur.toISOString().split('T')[0];
+      const prev=formatLocalDate(cur);
       if(!dates.has(prev))break;
       count++;
     }
@@ -779,7 +816,7 @@ const TASKS_KEY='cse_tasks', STREAK_KEY='cse_streak', LAST_DATE_KEY='cse_last_da
     let full=0,partial=0,focus=0,breakMin=0,sessions=0,bestDate='',bestScore=-1;
     for(let i=0;i<7;i++){
       const d=new Date(start);d.setDate(start.getDate()+i);
-      const ds=d.toISOString().split('T')[0];
+      const ds=formatLocalDate(d);
       const done=countCompletedTasks(state[ds]||{});
       const totalForDay=getCustomTasksForDate(ds).length;
       const isFull=totalForDay>0&&done>=totalForDay;
@@ -928,7 +965,7 @@ const TASKS_KEY='cse_tasks', STREAK_KEY='cse_streak', LAST_DATE_KEY='cse_last_da
   function getStreakLog() { try{return JSON.parse(localStorage.getItem(STREAK_LOG_KEY))||[];}catch{return[];} }
   function getMissedDays() {
     const log = getStreakLog(); let missed=0;
-    for(let i=1;i<=7;i++){const d=new Date();d.setDate(d.getDate()-i);if(!log.includes(d.toISOString().split('T')[0]))missed++;}
+    for(let i=1;i<=7;i++){const d=new Date();d.setDate(d.getDate()-i);if(!log.includes(formatLocalDate(d)))missed++;}
     return missed;
   }
 
@@ -1301,6 +1338,7 @@ const TASKS_KEY='cse_tasks', STREAK_KEY='cse_streak', LAST_DATE_KEY='cse_last_da
     const text=(input.value||'').trim();
     if(!text)return;
     const repeatDaily=Boolean(document.getElementById('customTaskRepeatDaily')?.checked);
+    let taskId=null;
     const all=loadCustomTasks();
     let effectiveDate=targetDate;
     let list=all[effectiveDate]||[];
@@ -1332,8 +1370,8 @@ const TASKS_KEY='cse_tasks', STREAK_KEY='cse_streak', LAST_DATE_KEY='cse_last_da
       syncRecurringTasksForDate(getToday());
       syncRecurringTasksForDate(getDateOffset(1));
     }else{
-      const id=`c${Date.now().toString(36)}${Math.random().toString(36).slice(2,6)}`;
-      list.push({id,text});
+      taskId=`c${Date.now().toString(36)}${Math.random().toString(36).slice(2,6)}`;
+      list.push({id:taskId,text});
       all[effectiveDate]=list;
       saveCustomTasks(all);
     }
@@ -1344,7 +1382,7 @@ const TASKS_KEY='cse_tasks', STREAK_KEY='cse_streak', LAST_DATE_KEY='cse_last_da
       renderTasks();
       renderProgress();
       renderDailyActionEngine();
-      focusTaskById(id);
+      if(taskId)focusTaskById(taskId);
     }
     recordAuditEvent('task',`Added custom task for ${effectiveDate}: ${text}`,effectiveDate);
   }
@@ -1977,23 +2015,26 @@ const TASKS_KEY='cse_tasks', STREAK_KEY='cse_streak', LAST_DATE_KEY='cse_last_da
     if(action.type==='task')btnEl.dataset.actionId=String(action.id);
     else btnEl.dataset.actionId='';
 
-    // Set lock toggle state from localStorage
+    // Set lock toggle state from localStorage.
     if(lockToggle){
-      lockToggle.checked=!!localStorage.getItem('focusLock');
-      lockToggle.onchange=function(){
-        if(this.checked){
-          document.body.classList.add('focus-locked');
-          localStorage.setItem('focusLock','1');
-        }else{
-          document.body.classList.remove('focus-locked');
-          localStorage.removeItem('focusLock');
-        }
+      const locked=!!localStorage.getItem('focusLock');
+      setFocusLock(locked);
+      lockToggle.onclick=function(event){
+        event.preventDefault();
+        setFocusLock(!document.body.classList.contains('focus-locked'));
       };
-      if(lockToggle.checked){
-        document.body.classList.add('focus-locked');
-      }else{
-        document.body.classList.remove('focus-locked');
-      }
+    }
+  }
+
+  function setFocusLock(locked){
+    const lockToggle=document.getElementById('focusLockToggle');
+    document.body.classList.toggle('focus-locked',locked);
+    if(locked)localStorage.setItem('focusLock','1');
+    else localStorage.removeItem('focusLock');
+    if(lockToggle){
+      lockToggle.setAttribute('aria-pressed',String(locked));
+      lockToggle.classList.toggle('active',locked);
+      lockToggle.textContent=locked?'Exit Focus Lock':'Focus Lock';
     }
   }
 
@@ -2011,10 +2052,7 @@ const TASKS_KEY='cse_tasks', STREAK_KEY='cse_streak', LAST_DATE_KEY='cse_last_da
       focusTaskById(/^[0-9]+$/.test(id)?Number(id):id);
       // Auto-unlock focus after completing
       if(document.body.classList.contains('focus-locked')){
-        document.body.classList.remove('focus-locked');
-        localStorage.removeItem('focusLock');
-        const lockToggle=document.getElementById('focusLockToggle');
-        if(lockToggle)lockToggle.checked=false;
+        setFocusLock(false);
       }
       return;
     }
@@ -2022,10 +2060,7 @@ const TASKS_KEY='cse_tasks', STREAK_KEY='cse_streak', LAST_DATE_KEY='cse_last_da
       startMissionSprint();
       renderNextActionWidget();
       if(document.body.classList.contains('focus-locked')){
-        document.body.classList.remove('focus-locked');
-        localStorage.removeItem('focusLock');
-        const lockToggle=document.getElementById('focusLockToggle');
-        if(lockToggle)lockToggle.checked=false;
+        setFocusLock(false);
       }
       return;
     }
@@ -2039,27 +2074,19 @@ const TASKS_KEY='cse_tasks', STREAK_KEY='cse_streak', LAST_DATE_KEY='cse_last_da
         input.focus();
       }
       if(document.body.classList.contains('focus-locked')){
-        document.body.classList.remove('focus-locked');
-        localStorage.removeItem('focusLock');
-        const lockToggle=document.getElementById('focusLockToggle');
-        if(lockToggle)lockToggle.checked=false;
+        setFocusLock(false);
       }
       return;
     }
     openNightPrep();
     if(document.body.classList.contains('focus-locked')){
-      document.body.classList.remove('focus-locked');
-      localStorage.removeItem('focusLock');
-      const lockToggle=document.getElementById('focusLockToggle');
-      if(lockToggle)lockToggle.checked=false;
+      setFocusLock(false);
     }
   }
   // On load, restore focus lock if set
   document.addEventListener('DOMContentLoaded',()=>{
     if(localStorage.getItem('focusLock')){
-      document.body.classList.add('focus-locked');
-      const lockToggle=document.getElementById('focusLockToggle');
-      if(lockToggle)lockToggle.checked=true;
+      setFocusLock(true);
     }
   });
   function renderWeeklyExecutionReview(){
@@ -2072,7 +2099,7 @@ const TASKS_KEY='cse_tasks', STREAK_KEY='cse_streak', LAST_DATE_KEY='cse_last_da
     let fullDays=0,sprintDays=0,reflectionDays=0;
     for(let i=0;i<7;i++){
       const d=new Date(today);d.setDate(today.getDate()-i);
-      const ds=d.toISOString().split('T')[0];
+      const ds=formatLocalDate(d);
       const done=countCompletedTasks(state[ds]||{});
       if(done>=3)fullDays++;
       if((pomo[ds]&&pomo[ds].sessions)||0>=1)sprintDays++;
@@ -2081,7 +2108,7 @@ const TASKS_KEY='cse_tasks', STREAK_KEY='cse_streak', LAST_DATE_KEY='cse_last_da
     let weekTasks=0,weekSprints=0;
     for(let i=0;i<7;i++){
       const d=new Date(today);d.setDate(today.getDate()-i);
-      const ds=d.toISOString().split('T')[0];
+      const ds=formatLocalDate(d);
       weekTasks+=countCompletedTasks(state[ds]||{});
       weekSprints+=((pomo[ds]&&pomo[ds].sessions)||0);
     }
@@ -2092,7 +2119,14 @@ const TASKS_KEY='cse_tasks', STREAK_KEY='cse_streak', LAST_DATE_KEY='cse_last_da
 
   function getDailyEngineData(){
     const md=getTodayMissionData();
-    const focusPlan=getTodayFocusPlan();
+    const stateToday=loadState()[getToday()]||{};
+    let focusPlan=getTodayFocusPlan();
+    if(focusPlan&&isTaskCompletedEntry(stateToday[focusPlan.taskId])){
+      const all=loadTodayFocusPlanMap();
+      delete all[getToday()];
+      saveTodayFocusPlanMap(all);
+      focusPlan=null;
+    }
     const todayPomo=loadPomoDailyLog()[getToday()]||{focusMinutes:0,sessions:0};
     let progressPct=Math.round((md.completedBlocks/3)*100);
     let mode=md.remainingBlocks>1?'minimum-mode':'normal';
@@ -2642,7 +2676,7 @@ const TASKS_KEY='cse_tasks', STREAK_KEY='cse_streak', LAST_DATE_KEY='cse_last_da
     let completedFull=0;
     for(let i=0;i<7;i++){
       const d=new Date(startOfWeek);d.setDate(startOfWeek.getDate()+i);
-      const ds=d.toISOString().split('T')[0];
+      const ds=formatLocalDate(d);
       const isFuture=ds>today,isToday=ds===today;
       const tasks=state[ds]||{};
       const done=countCompletedTasks(tasks);
@@ -3130,27 +3164,10 @@ const TASKS_KEY='cse_tasks', STREAK_KEY='cse_streak', LAST_DATE_KEY='cse_last_da
   }
 
   // SUBJECT TRACKER
-  function loadSubjects(){try{return JSON.parse(localStorage.getItem(SUBJ_KEY))||{dbms:0,os:0,cn:0,dsa:0};}catch{return{dbms:0,os:0,cn:0,dsa:0};}}
-  function saveSubjects(s){localStorage.setItem(SUBJ_KEY,JSON.stringify(s));}
+  // The fixed DBMS/OS/CN/DSA rows were replaced by dynamic exam subjects.
   function renderSubjects(){
-    const s=loadSubjects();
-    ['dbms','os','cn','dsa'].forEach(k=>{
-      document.getElementById('bar-'+k).style.width=s[k]+'%';
-      document.getElementById('pct-'+k).textContent=s[k]+'%';
-    });
+    renderDynamicSubjects();
   }
-  ['dbms','os','cn','dsa'].forEach(subj=>{
-    const wrap=document.getElementById('wrap-'+subj);
-    if(!wrap)return;
-    function handleBarClick(e){
-      const rect=wrap.getBoundingClientRect();
-      const clientX=e.touches?e.touches[0].clientX:e.clientX;
-      const pct=Math.round(Math.max(0,Math.min(100,(clientX-rect.left)/rect.width*100)));
-      const s=loadSubjects();s[subj]=pct;saveSubjects(s);renderSubjects();
-    }
-    wrap.addEventListener('click',handleBarClick);
-    wrap.addEventListener('touchend',e=>{e.preventDefault();handleBarClick(e.changedTouches[0]?{clientX:e.changedTouches[0].clientX}:e);},{passive:false});
-  });
 
   // STREAK
   function getStreakData(){try{return JSON.parse(localStorage.getItem(STREAK_KEY))||{count:0};}catch{return{count:0};}}
@@ -3160,13 +3177,13 @@ const TASKS_KEY='cse_tasks', STREAK_KEY='cse_streak', LAST_DATE_KEY='cse_last_da
     let markedNow=false;
     if(log.includes(today)){
       log.splice(log.indexOf(today),1);streak.count=Math.max(0,streak.count-1);
-      const y=new Date();y.setDate(y.getDate()-1);localStorage.setItem(LAST_DATE_KEY,y.toISOString().split('T')[0]);
+      const y=new Date();y.setDate(y.getDate()-1);localStorage.setItem(LAST_DATE_KEY,formatLocalDate(y));
       removeWeekPhoto(today);
       recordAuditEvent('streak','Undid today\'s streak mark.',today);
     }else{
       const last=localStorage.getItem(LAST_DATE_KEY);
       const y=new Date();y.setDate(y.getDate()-1);
-      streak.count=(last===y.toISOString().split('T')[0])?streak.count+1:1;
+      streak.count=(last===formatLocalDate(y))?streak.count+1:1;
       log.push(today);if(log.length>30)log.shift();localStorage.setItem(LAST_DATE_KEY,today);
       markedNow=true;
       recordAuditEvent('streak','Marked today as done.',today);
@@ -3195,7 +3212,7 @@ const TASKS_KEY='cse_tasks', STREAK_KEY='cse_streak', LAST_DATE_KEY='cse_last_da
     const today=getToday();
     for(let i=9;i>=0;i--){
       const d=new Date();d.setDate(d.getDate()-i);
-      const ds=d.toISOString().split('T')[0];
+      const ds=formatLocalDate(d);
       const dot=document.createElement('div');dot.className='dot';dot.textContent=d.getDate();
       if(log.includes(ds))dot.classList.add('active');
       else if(ds<today)dot.classList.add('missed');
@@ -3253,7 +3270,7 @@ const TASKS_KEY='cse_tasks', STREAK_KEY='cse_streak', LAST_DATE_KEY='cse_last_da
     }
     for(let day=1;day<=daysInMonth;day++){
       const d=new Date(y,m,day);
-      const ds=d.toISOString().split('T')[0];
+      const ds=formatLocalDate(d);
       if(ds<=today)elapsed++;
       const lvl=getDayCompletionLevel(ds,state,log);
       if(lvl===3&&ds<=today)fullDays++;
@@ -3280,7 +3297,7 @@ const TASKS_KEY='cse_tasks', STREAK_KEY='cse_streak', LAST_DATE_KEY='cse_last_da
       let miss=0;
       for(let i=daysBackStart;i<=daysBackEnd;i++){
         const d=new Date();d.setDate(d.getDate()-i);
-        const ds=d.toISOString().split('T')[0];
+        const ds=formatLocalDate(d);
         if(getDayCompletionLevel(ds,state,log)===0)miss++;
       }
       return miss;
@@ -3376,7 +3393,7 @@ const TASKS_KEY='cse_tasks', STREAK_KEY='cse_streak', LAST_DATE_KEY='cse_last_da
   function getDateOffset(days){
     const d=new Date();
     d.setDate(d.getDate()+days);
-    return d.toISOString().split('T')[0];
+    return formatLocalDate(d);
   }
   function enforceStreakContinuity(){
     const streak=getStreakData();

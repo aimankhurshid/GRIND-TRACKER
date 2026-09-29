@@ -9,6 +9,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
 <meta name="apple-mobile-web-app-title" content="Daily Mission">
+<link rel="icon" href="icon-192.png">
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Mono:wght@400;500&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="styles/main.css">
 <link rel="manifest" href="manifest.json">
@@ -239,8 +240,9 @@
         </div>
       </div>
       <div class="next-action-text" id="nextActionText">Loading your next step...</div>
+      <button type="button" class="next-action-btn" id="nextActionBtn" onclick="doNextAction()">Start</button>
       <div class="next-action-lock">
-        <a href="#" id="focusLockToggle" class="focus-lock-link" title="Hide all except this step" tabindex="0">Focus Lock</a>
+        <a href="#" id="focusLockToggle" class="focus-lock-link" role="button" aria-pressed="false" title="Hide all except this step">Focus Lock</a>
       </div>
     </div>
   </div>
